@@ -61,4 +61,35 @@ Executed the foundational alignment and system design before writing any code:
 - **Observations & Technical Debt Flag:**
   - Noted weak fallback credentials in API configuration for dev/docker defaults; flagged for hardening before public/production deployment in Step 12.
 
+---
 
+## Log Entry 3: Authentication — Signup, Login & Error Handling (Step 5A)
+
+- **Date / Timestamp:** 2026-09-26T02:50:00+06:00
+- **AI Tools Used:** Antigravity (powered by Claude Opus 4.6 Thinking)
+- **Phase Covered:** Step 5A (Password hashing, JWT issuance, signup/login endpoints, Zod validation, error middleware, Jest integration tests)
+- **Commits:** `d11f463`, `8a98827`, `274f0a5`, `a7cb098`, `f29d530`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/services/password.service.ts` | bcrypt `hashPassword` / `verifyPassword` wrappers |
+| `src/services/jwt.service.ts` | `signAccessToken` using `jsonwebtoken` with `JWT_SECRET` from env |
+| `src/services/auth.service.ts` | `registerUser` and `loginUser` business logic; strips `password_hash` from responses |
+| `src/controllers/auth.controller.ts` | Thin controller layer: Zod-parse → service call → status code |
+| `src/routes/auth.routes.ts` | `POST /auth/signup`, `POST /auth/login` |
+| `src/schemas/auth.schema.ts` | Zod schemas for signup (name, email, password, role) and login (email, password) |
+| `src/types/AppError.ts` | Custom `AppError` class with `statusCode`, `message`, and `code` |
+| `src/middleware/errorHandler.ts` | Central error handler dispatching `AppError`, `ZodError`, and fallback 500 |
+| `src/middleware/notFoundHandler.ts` | Catch-all 404 for unmatched routes |
+| `tests/auth.test.ts` | 7 Jest integration tests covering signup, login, validation, and error paths |
+
+### 2. Accepted Suggestions
+- **Identical 401 response for wrong-password and unknown-email:** AI suggested returning the same `AppError(401, 'Invalid email or password', 'INVALID_CREDENTIALS')` for both unknown email and wrong password in `loginUser`, preventing user-enumeration attacks. Accepted because it matches OWASP best practice and the smoke test explicitly requires byte-identical 401 bodies for both cases.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **Prisma `$disconnect()` in Jest `afterAll`:** AI suggested adding `await prisma.$disconnect()` in the test teardown to cleanly close the connection pool. Modified to defer: the tests currently run against a live database and Jest prints a "Force exiting Jest" warning due to the open connection pool, but all 7 tests pass correctly. Deferring the fix avoids coupling test infrastructure changes with the auth feature; it is tracked as a known nuisance for future cleanup (see §4 below).
+
+### 4. Known Issues & Technical Debt
+- **Jest "Force exiting Jest" warning:** After all 7 tests pass, Jest prints `"Force exiting Jest: Have you considered using --forceExit?"` because the Prisma client connection pool is not disconnected in `afterAll`. This does not affect test correctness or CI exit codes. Flagged for cleanup in a future test-infrastructure pass.
