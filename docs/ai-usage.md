@@ -93,3 +93,32 @@ Executed the foundational alignment and system design before writing any code:
 
 ### 4. Known Issues & Technical Debt
 - **Jest "Force exiting Jest" warning:** After all 7 tests pass, Jest prints `"Force exiting Jest: Have you considered using --forceExit?"` because the Prisma client connection pool is not disconnected in `afterAll`. This does not affect test correctness or CI exit codes. Flagged for cleanup in a future test-infrastructure pass.
+
+---
+
+## Log Entry 4: Auth & Ownership Middleware (Step 5B)
+
+- **Date / Timestamp:** 2026-09-26T03:00:00+06:00
+- **AI Tools Used:** Antigravity (powered by Claude Opus 4.6 Thinking)
+- **Phase Covered:** Step 5B (requireAuth, requireRole, requireOwnership middleware factories, Express Request type augmentation, 10 middleware tests)
+- **Branch:** `feature/ownership-middleware`
+
+### 1. Files Added
+
+| File | Purpose |
+|------|---------|
+| `src/types/express.d.ts` | Augments Express `Request` with `req.user?: { id: string; role }` per §6 step 5 |
+| `src/middleware/requireAuth.ts` | Extracts Bearer token, verifies via `jwt.service`, sets `req.user` |
+| `src/middleware/requireRole.ts` | Factory restricting access to specified roles; 403 on mismatch |
+| `src/middleware/requireOwnership.ts` | Factory resolving resource owner; 403 on null or mismatch |
+| `src/middleware/index.ts` | Barrel export for the three middleware modules |
+| `tests/ownership-middleware.test.ts` | 10 test cases against a test-only Express app with in-memory ride store |
+
+### 2. Accepted Suggestions
+- **`req.user.id` mapped from `payload.userId`:** The JWT payload uses `userId` internally (from `jwt.service.ts`), but `requireAuth` maps it to `req.user.id` per `PROJECT_PLAN.md §6 step 5` which specifies the field as `req.user.id`. Accepted to maintain strict compliance with the plan while preserving the existing JWT payload shape.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **404 for cross-user ownership mismatch (anti-enumeration):** Considered returning 404 instead of 403 on ownership mismatch to hide resource existence from unauthorized users. Rejected in favor of 403 for consistency with `PROJECT_PLAN.md §6 step 5` ("Cross-user access must return 403 Forbidden") and `§9 test 5`. The anti-enumeration benefit is marginal for this MVP where resource IDs are UUIDs (not guessable), and deviating from the plan would create confusion in test evaluation.
+
+### 4. Middleware Not Yet Wired
+- All three middleware modules are tested but not mounted on any production route. They will be wired in Step 6+ when ride/pool endpoints are created.
