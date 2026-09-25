@@ -9,6 +9,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // 24-hour token expiry balances user convenience and risk for MVP scale per PROJECT_PLAN.md §1
+  JWT_EXPIRY_HOURS: z.coerce.number().default(24),
 });
 
 export const env = envSchema.parse(process.env);
