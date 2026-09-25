@@ -47,6 +47,18 @@ Executed the foundational alignment and system design before writing any code:
 6. **Conventional Git Commits:** Made incremental commits adhering to `PROJECT_PLAN.md §12` commit formatting rules.
 
 ### 2. Considered and Rejected / Modified Suggestions
-- **Next.js Standalone vs Default Runner:** Configured `output: 'standalone'` in Next.js config to enable minimal production Docker image footprint without shipping full `node_modules` to the runtime container.
 - **Silent Environment Patching:** Avoided modifying system-level tools when `docker` was absent from PATH; strictly adhered to instructions to stop and report exact raw command outputs rather than masking the environment limitation.
+
+### 3. Step 3 Scaffold & Docker Compose Gate Verification Complete
+- **Date / Timestamp:** 2026-09-26T01:55:00+06:00
+- **Status:** Gate passed (§8 gate verified).
+- **Verification Summary:**
+  - `docker compose build`: Succeeded for all services (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`).
+  - `docker compose up -d`: All three containers spawned and achieved `healthy` status.
+  - API Healthcheck: `GET http://localhost:5000/health` returned HTTP 200 with `{ "status": "ok" }`.
+  - Frontend Healthcheck: `GET http://localhost:3000` returned HTTP 200.
+  - Clean Teardown: `docker compose down` stopped and removed containers and network cleanly.
+- **Observations & Technical Debt Flag:**
+  - Noted weak fallback credentials in API configuration for dev/docker defaults; flagged for hardening before public/production deployment in Step 12.
+
 
