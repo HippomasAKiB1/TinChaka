@@ -122,3 +122,43 @@ Executed the foundational alignment and system design before writing any code:
 
 ### 4. Middleware Not Yet Wired
 - All three middleware modules are tested but not mounted on any production route. They will be wired in Step 6+ when ride/pool endpoints are created.
+
+---
+
+## Log Entry 5: Passenger Ride Request Creation & Estimated Fare (Step 6)
+
+- **Date / Timestamp:** 2026-09-26T03:12:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 6 (Dhaka zones, symmetric distance matrix, locked fare estimation, ride request creation with audit history, /ride-requests/me history endpoint, §9 Test #4 and integration suite)
+- **Branch:** `feature/ride-request-flow`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/domain/zones.ts` | 9 canonical Dhaka transit zones and type helpers per architecture.md §4(a) |
+| `src/domain/distance.ts` | 9x9 symmetric integer km lookup matrix per architecture.md §4(b) |
+| `src/domain/fare.ts` | Integer-poysha fare computation formulas and locked constants (3000, 1500, 0.20) |
+| `src/schemas/rideRequest.schema.ts` | Zod schema for ride request creation validating pickup, destination, and seats (1-3) |
+| `src/services/rideRequest.service.ts` | Transactional request creation with initial audit history row (`from_status=null`), and personal list query |
+| `src/controllers/rideRequest.controller.ts` | Controllers for `POST /ride-requests` and `GET /ride-requests/me` |
+| `src/routes/rideRequest.routes.ts` | Routes bound to `requireAuth` and `requireRole('PASSENGER')` |
+| `src/app.ts` | Mounted `/ride-requests` router |
+| `tests/fare.test.ts` | Mandatory §9 Test #4 verifying fare formulas, worked examples (Nusrat 7500/6600, Rafiq 9000/7800), symmetry, and integer invariants |
+| `tests/ride-request.test.ts` | 10 integration tests covering creation, role gate (403 for DRIVER), validation, audit row generation, and personal history |
+
+### 2. Accepted Suggestions
+- **Exact Worked-Example Alignment:** Implemented pure integer poysha arithmetic (`Math.floor` on distance charge discount) matching architecture.md §5 worked examples to the poysha: Nusrat solo = 7500 poysha, Nusrat pooled = 6600 poysha; Rafiq solo = 9000 poysha, Rafiq pooled = 7800 poysha.
+- **Initial Audit Row in Transaction:** Created the initial `ride_status_history` record within the same Prisma transaction as the ride request creation, establishing the state audit trail where `from_status=null` and `to_status='REQUESTED'`.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **Attaching `requireOwnership` to `/ride-requests`:** Considered whether `requireOwnership` was needed on `/ride-requests` or `/ride-requests/me`. Rejected because these endpoints act strictly on the authenticated caller (`req.user.id`) rather than route parameters. `requireOwnership` is deferred to `/:id` routes in Step 9 per `PROJECT_PLAN.md §6 step 5`.
+
+### 4. Verification Summary
+- **Unit & Integration Tests:** 33/33 tests passing across 4 test suites.
+- **Docker Compose Smoke Test:** Verified end-to-end against live PostgreSQL container:
+  - `POST /auth/login` (Nusrat) -> 200 with JWT
+  - `POST /ride-requests` (Nusrat, 1 seat, Banani -> Mohakhali) -> 201 with `estimated_fare_poysha: 7500`
+  - `GET /ride-requests/me` (Nusrat) -> 200 with ride in array
+  - `POST /ride-requests` (Jashim, DRIVER) -> 403 Forbidden
+  - Smoke data cleaned from database via psql.
