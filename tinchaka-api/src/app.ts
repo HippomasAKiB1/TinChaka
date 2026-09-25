@@ -1,5 +1,6 @@
 import express, { Application, Request, Response } from 'express';
 import { authRouter } from './routes/auth.routes';
+import { rideRequestRouter } from './routes/rideRequest.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -16,6 +17,9 @@ export const createApp = (): Application => {
 
   // Mount auth routes
   app.use('/auth', authRouter);
+
+  // Mount passenger ride request routes
+  app.use('/ride-requests', rideRequestRouter);
 
   // TODO(step-6): mount requireOwnership middleware on ride resources
   // TODO(step-7): mount ride request endpoints (/ride-requests)
