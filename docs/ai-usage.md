@@ -30,3 +30,35 @@ Executed the foundational alignment and system design before writing any code:
 3. **Correction 3 — Step 2 Scope Deliverables:** Formally resolved Gap #3 (full 9-zone distance lookup table and rate proposal) and Gap #4 (pool-to-member status cascade table and cancellation rules) directly within `docs/architecture.md` prior to any code generation.
 4. **Resolution on Fare Scale (Update 1 per PRD.md §17):** Approved by human to scale the baseline constants by $100\times$: `baseFare = 3000 poysha` (30 Taka), `ratePerKm = 1500 poysha/km` (15 Taka/km), and 20% discount on distance charge. This matches real Dhaka transit economics while preserving pure integer-poysha arithmetic throughout the application.
 
+---
+
+## Log Entry 2: Repository Scaffolding & Docker Gate Verification (Step 3)
+
+- **Date / Timestamp:** 2026-09-26T01:36:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 3 (Scaffold repo + Docker Compose + .env.example, verify empty-but-running per `PROJECT_PLAN.md §19 step 3, §8 gate`)
+
+### 1. Actions Executed
+1. **Branch Management:** Renamed initial default branch `main` to `master` per `PRD.md §10` and `PROJECT_PLAN.md §12`. Committed project baseline on `master` (commit `8d42266`). *Note on commit `8d42266`: The commit message stated 'docs: add project baseline (PRD, project plan, architecture, AI usage log)' although `PRD.md` and `PROJECT_PLAN.md` were already committed in prior repository history (`786e291` and `51c2907`); the actual diff introduced `architecture.md` and `ai-usage.md` only.*
+2. **Feature Branching:** Created and checked out `feature/project-scaffold`.
+3. **API Scaffolding (`tinchaka-api`):** Configured Express + TypeScript, Zod environment validation (`DATABASE_URL`, `JWT_SECRET`, `PORT`), `/health` endpoint, clean directory layout (`routes`, `controllers`, `services`, `repositories`, `middleware`, `types`), empty Prisma schema, production multi-stage Dockerfile, and `entrypoint.sh`. Verified build locally with `npm run build` producing `dist/`.
+4. **Web Scaffolding (`tinchaka-web`):** Configured Next.js 14 App Router, TypeScript, Tailwind CSS, placeholder "TinChaka — coming online" UI, standalone output in `next.config.js`, and multi-stage Dockerfile. Verified production build locally with `next build`.
+5. **Docker Compose & Environment:** Created root `docker-compose.yml` (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`) with healthchecks and dependencies, along with `.env.example` placeholder values.
+6. **Conventional Git Commits:** Made incremental commits adhering to `PROJECT_PLAN.md §12` commit formatting rules.
+
+### 2. Considered and Rejected / Modified Suggestions
+- **Silent Environment Patching:** Avoided modifying system-level tools when `docker` was absent from PATH; strictly adhered to instructions to stop and report exact raw command outputs rather than masking the environment limitation.
+
+### 3. Step 3 Scaffold & Docker Compose Gate Verification Complete
+- **Date / Timestamp:** 2026-09-26T01:55:00+06:00
+- **Status:** Gate passed (§8 gate verified).
+- **Verification Summary:**
+  - `docker compose build`: Succeeded for all services (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`).
+  - `docker compose up -d`: All three containers spawned and achieved `healthy` status.
+  - API Healthcheck: `GET http://localhost:5000/health` returned HTTP 200 with `{ "status": "ok" }`.
+  - Frontend Healthcheck: `GET http://localhost:3000` returned HTTP 200.
+  - Clean Teardown: `docker compose down` stopped and removed containers and network cleanly.
+- **Observations & Technical Debt Flag:**
+  - Noted weak fallback credentials in API configuration for dev/docker defaults; flagged for hardening before public/production deployment in Step 12.
+
+

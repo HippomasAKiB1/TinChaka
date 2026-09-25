@@ -1,0 +1,64 @@
+name: tinchaka
+
+services:
+  tinchaka-db:
+    image: postgres:15-alpine
+    container_name: tinchaka-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-tinchaka_db}
+    volumes:
+      - tinchaka_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-tinchaka_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tinchaka-api:
+    build:
+      context: ./tinchaka-api
+      dockerfile: Dockerfile
+    container_name: tinchaka-api
+    restart: unless-stopped
+    depends_on:
+      tinchaka-db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@tinchaka-db:5432/tinchaka_db?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-secret}
+      PORT: ${PORT:-3001}
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:' + (process.env.PORT || 3001) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  tinchaka-web:
+    build:
+      context: ./tinchaka-web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: tinchaka-web
+    restart: unless-stopped
+    depends_on:
+      tinchaka-api:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      PORT: 3000
+
+volumes:
+  tinchaka_pgdata:
+    name: tinchaka_pgdata
