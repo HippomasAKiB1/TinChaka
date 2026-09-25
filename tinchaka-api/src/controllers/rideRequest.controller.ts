@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { createRideRequestSchema } from '../schemas/rideRequest.schema';
-import { createRideRequest, listPassengerRideRequests } from '../services/rideRequest.service';
+import { createRideRequest, listPassengerRideRequests, listPendingInZone } from '../services/rideRequest.service';
+import { isZone } from '../domain/zones';
+import { AppError } from '../types/AppError';
 
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -25,3 +27,18 @@ export async function listMine(req: Request, res: Response, next: NextFunction):
     next(err);
   }
 }
+
+// Lists pending ride requests in a specific zone for drivers
+export async function listPending(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const zoneQuery = req.query.zone;
+    if (typeof zoneQuery !== 'string' || !isZone(zoneQuery)) {
+      throw new AppError(400, 'Valid zone query parameter is required', 'VALIDATION_ERROR');
+    }
+    const rideRequests = await listPendingInZone(req.user!.id, zoneQuery);
+    res.status(200).json({ ride_requests: rideRequests });
+  } catch (err) {
+    next(err);
+  }
+}
+

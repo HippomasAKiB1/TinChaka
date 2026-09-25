@@ -2,6 +2,7 @@ import { RideRequest } from '@prisma/client';
 import { prisma } from '../config/db';
 import { Zone } from '../domain/zones';
 import { estimateSoloFare } from '../domain/fare';
+import { AppError } from '../types/AppError';
 
 export interface CreateRideRequestParams {
   passengerId: string;
@@ -53,3 +54,26 @@ export async function listPassengerRideRequests(passengerId: string): Promise<Ri
     },
   });
 }
+
+// Lists pending ride requests in driver's pickup zone; checks that driver's vehicle is online
+export async function listPendingInZone(driverId: string, zone: Zone): Promise<RideRequest[]> {
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { driver_id: driverId },
+  });
+
+  if (!vehicle || !vehicle.is_online) {
+    throw new AppError(409, 'Go online to see pending requests', 'DRIVER_OFFLINE');
+  }
+
+  return await prisma.rideRequest.findMany({
+    where: {
+      status: 'REQUESTED',
+      pool_id: null,
+      pickup_zone: zone,
+    },
+    orderBy: {
+      created_at: 'asc',
+    },
+  });
+}
+
