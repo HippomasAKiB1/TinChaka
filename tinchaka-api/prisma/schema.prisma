@@ -7,4 +7,136 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Models land in Step 4 per PROJECT_PLAN.md §19
+enum UserRole {
+  PASSENGER
+  DRIVER
+}
+
+enum RideRequestStatus {
+  REQUESTED
+  MATCHED
+  DRIVER_ARRIVED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PoolStatus {
+  MATCHED
+  DRIVER_ARRIVED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  TESLAPAY_WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String              @db.VarChar(100)
+  email         String              @unique @db.VarChar(255)
+  password_hash String              @map("password_hash") @db.VarChar(255)
+  role          UserRole
+  created_at    DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  vehicle             Vehicle?
+  ride_requests       RideRequest[]
+  ride_status_history RideStatusHistory[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  driver_id  String   @unique @map("driver_id") @db.Uuid
+  name       String   @db.VarChar(100)
+  capacity   Int      @default(3)
+  is_online  Boolean  @default(false) @map("is_online")
+  created_at DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  driver User   @relation(fields: [driver_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pools  Pool[]
+
+  @@index([is_online])
+  @@map("vehicles")
+}
+
+model Pool {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vehicle_id   String     @map("vehicle_id") @db.Uuid
+  status       PoolStatus @default(MATCHED)
+  started_at   DateTime?  @map("started_at") @db.Timestamptz
+  completed_at DateTime?  @map("completed_at") @db.Timestamptz
+  created_at   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  vehicle       Vehicle       @relation(fields: [vehicle_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ride_requests RideRequest[]
+
+  @@index([vehicle_id])
+  @@index([status])
+  @@map("pools")
+}
+
+model RideRequest {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  passenger_id          String            @map("passenger_id") @db.Uuid
+  pickup_zone           String            @map("pickup_zone") @db.VarChar(100)
+  destination_zone      String            @map("destination_zone") @db.VarChar(100)
+  seats_requested       Int               @default(1) @map("seats_requested")
+  status                RideRequestStatus @default(REQUESTED)
+  pool_id               String?           @map("pool_id") @db.Uuid
+  estimated_fare_poysha Int               @map("estimated_fare_poysha")
+  final_fare_poysha     Int?              @map("final_fare_poysha")
+  created_at            DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updated_at            DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  passenger           User                @relation(fields: [passenger_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pool                Pool?               @relation(fields: [pool_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ride_status_history RideStatusHistory[]
+  payment             Payment?
+
+  @@index([status])
+  @@index([pickup_zone])
+  @@index([pool_id])
+  @@index([passenger_id])
+  @@map("ride_requests")
+}
+
+model RideStatusHistory {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ride_request_id    String             @map("ride_request_id") @db.Uuid
+  from_status        RideRequestStatus? @map("from_status")
+  to_status          RideRequestStatus  @map("to_status")
+  changed_by_user_id String             @map("changed_by_user_id") @db.Uuid
+  changed_at         DateTime           @default(now()) @map("changed_at") @db.Timestamptz
+
+  ride_request    RideRequest @relation(fields: [ride_request_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  changed_by_user User        @relation(fields: [changed_by_user_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([ride_request_id])
+  @@index([changed_at])
+  @@map("ride_status_history")
+}
+
+model Payment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ride_request_id String        @unique @map("ride_request_id") @db.Uuid
+  method          PaymentMethod
+  amount_poysha   Int           @map("amount_poysha")
+  status          PaymentStatus @default(PENDING)
+  created_at      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  ride_request RideRequest @relation(fields: [ride_request_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([status])
+  @@map("payments")
+}
