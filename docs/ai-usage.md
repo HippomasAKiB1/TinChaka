@@ -162,3 +162,54 @@ Executed the foundational alignment and system design before writing any code:
   - `GET /ride-requests/me` (Nusrat) -> 200 with ride in array
   - `POST /ride-requests` (Jashim, DRIVER) -> 403 Forbidden
   - Smoke data cleaned from database via psql.
+
+---
+
+## Log Entry 6: Driver Availability, Zone Pending List & Tesla Pooling with §5 Concurrency Control (Step 7)
+
+- **Date / Timestamp:** 2026-09-26T03:28:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 7 (Vehicle online status toggle, driver same-zone pending request list, transactional pool acceptance with row-level locks, dynamic fare recalculation with 20% pool discount, §9 Test #1 capacity & fare suite, and §9 Test #2 last-seat race concurrency suite)
+- **Branch:** `feature/tesla-pooling`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/services/vehicle.service.ts` | `setOnlineStatus` service updating driver's vehicle `is_online` status |
+| `src/schemas/vehicle.schema.ts` | Zod schema for vehicle online status toggle |
+| `src/controllers/vehicle.controller.ts` | Controller for `PATCH /vehicles/me/online` |
+| `src/routes/vehicle.routes.ts` | Router for vehicle endpoints with `requireAuth` and `requireRole('DRIVER')` |
+| `src/services/pool.service.ts` | Transactional `acceptRequest` with PostgreSQL `SELECT ... FOR UPDATE` row locks, capacity check, and member fare recalculation |
+| `src/schemas/pool.schema.ts` | Zod schema validating `ride_request_id` as UUID |
+| `src/controllers/pool.controller.ts` | Controller for `POST /pools/accept` returning 200 `{ pool, created }` |
+| `src/routes/pool.routes.ts` | Router for pool operations with `requireAuth` and `requireRole('DRIVER')` |
+| `src/services/rideRequest.service.ts` | Added `listPendingInZone` requiring driver online status |
+| `src/controllers/rideRequest.controller.ts` | Added `listPending` validating `?zone` query parameter |
+| `src/routes/rideRequest.routes.ts` | Added `GET /` with `requireAuth` and `requireRole('DRIVER')` |
+| `src/app.ts` | Mounted `/vehicles` and `/pools` routers |
+| `tests/pool-capacity.test.ts` | §9 Test #1 covering capacity limit (3), zone mismatch (409), offline driver (409), and two-stage fare recalculation |
+| `tests/concurrency.test.ts` | §9 Test #2 covering last-seat race between concurrent accept requests under row-level locking |
+
+### 2. Accepted Suggestions
+- **Single-Endpoint Accept Simplification:** Collapsed §6 step 8's separate creation (`POST /pools`) and join (`POST /pools/:id/join`) into a single atomic `POST /pools/accept` endpoint. The server inspects whether the driver has an active uncompleted pool (`MATCHED` or `DRIVER_ARRIVED`) via row-locked query and either attaches to it or creates a new pool. This eliminates client-side state branching while maintaining identical invariants.
+- **Explicit Zone Query Parameter for Driver Location:** Adopted `GET /ride-requests?zone=...` to query compatible pending requests. Since the MVP data model does not track real-time GPS coordinates or driver location entities, the driver explicitly specifies their current station zone.
+- **PostgreSQL Row-Level Concurrency Control (§5):** Implemented strict pessimistic row locking inside `prisma.$transaction`:
+  1. `SELECT ... FROM pools WHERE vehicle_id = $1 AND status IN ('MATCHED', 'DRIVER_ARRIVED') FOR UPDATE`
+  2. `SELECT ... FROM ride_requests WHERE id = $1 FOR UPDATE`
+  3. Re-computed total occupied seats via `SELECT COALESCE(SUM(seats_requested), 0)::int ...` strictly inside the transaction lock before linking.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **Optimistic Concurrency Control (Version Column):** Considered optimistic locking with a version number on the pool row. Rejected for the MVP in favor of PostgreSQL's native `SELECT ... FOR UPDATE` pessimistic row lock per `PROJECT_PLAN.md §5`. While pessimistic locking serializes concurrent accepts per vehicle, it provides ironclad guarantees against overbooking on single-vehicle pools and requires zero distributed state. Documented in comments and architecture documentation as a conscious design choice.
+
+### 4. Verification Summary
+- **Unit & Integration Tests:** 38/38 tests passing across all 6 test suites:
+  - `tests/pool-capacity.test.ts`: Passed all 4 cases (capacity 3 bound, zone mismatch, offline driver, 7500 solo -> 6600/7800 pooled discount).
+  - `tests/concurrency.test.ts`: Passed last-seat race between concurrent requests: exactly one request received 200, exactly one received 409 `CAPACITY_EXCEEDED`, and total occupied seats remained strictly 3.
+- **Docker Compose Smoke Test:** Verified end-to-end against live PostgreSQL container:
+  - Driver `PATCH /vehicles/me/online` -> `is_online: true`
+  - Driver `GET /ride-requests?zone=Banani` -> listed pending requests
+  - Driver `POST /pools/accept` (Nusrat) -> 200 with pool created, fare = 7500
+  - Driver `POST /pools/accept` (Rafiq) -> 200 joined pool, Nusrat fare = 6600, Rafiq fare = 7800
+  - Direct SQL query confirmed both rows updated in PostgreSQL.
+
