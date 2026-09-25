@@ -1,7 +1,11 @@
 #!/bin/sh
 set -e
 
-# TODO(step-4): prisma migrate deploy && prisma db seed
+echo "[entrypoint] Running migrations..."
+npx prisma migrate deploy
 
-echo "[entrypoint.sh] Starting TinChaka API server..."
+echo "[entrypoint] Seeding database..."
+npx prisma db seed
+
+echo "[entrypoint] Starting API server..."
 exec node dist/index.js
