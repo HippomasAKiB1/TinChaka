@@ -486,4 +486,35 @@ Executed the foundational alignment and system design before writing any code:
   - Advanced Jashim through `Arrived` $\rightarrow$ `Started` $\rightarrow$ `Completed` lifecycle.
   - Verified total cash fares collected (৳132) on driver history and completed receipt on Nusrat's passenger dashboard.
 
+---
+
+## Log Entry 14: Pre-release Branch Cut & Clean-Clone Verification (Step 14A)
+
+- **Date / Timestamp:** 2026-09-26T23:50:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 14A (Merged driver flow to master, cut long-lived pre-release branch, conducted clean-clone Docker build and end-to-end container health & authentication verification)
+- **Branch:** `pre-release`
+
+### 1. Operations Performed
+
+| Action | Description |
+|--------|-------------|
+| Merge to Master | Merged `feature/frontend-driver` cleanly into `master` via non-fast-forward merge (`chore: merge driver flow into master`). |
+| Branch Cut | Created fresh long-lived branch `pre-release` from updated `master`. |
+| Local Clean Clone | Cloned the repository from local filesystem to `$env:TEMP/tinchaka-clone-*` and checked out `pre-release`. |
+| File Tree Verification | Confirmed all essential files present: `tinchaka-api/`, `tinchaka-web/`, `docs/`, `docker-compose.yml`, `.env.example`, `.gitattributes`, `.gitignore`, `README.md`, and `tinchaka-api/entrypoint.sh`. |
+| Container Build & Boot | Executed `docker compose up -d --build` inside the clean clone directory. All three containers built and reached healthy/running states (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`). |
+| End-to-End Verification | Verified `GET /health` returned `200 {"status":"ok","db":"up"}` and `POST /auth/login` returned `200` with valid JWT token and `Access-Control-Allow-Origin: *`. |
+| Teardown & Cleanup | Cleanly stopped and removed all containers with `docker compose down` and deleted the temporary clone directory. |
+
+### 2. Issues Found and Resolved
+- **PowerShell JSON Parameter Quoting:** When testing `curl.exe` with JSON payloads on Windows PowerShell, PowerShell stripped double quotes inside string arguments before invoking native executables. Resolved by utilizing the `--%` stop-parsing symbol (`curl.exe ... --% -d "{\"email\":\"...\"}"`), ensuring literal JSON delivery to the API container.
+- **Clean-Clone Integrity:** Confirmed no files were missing from git tracking; Docker build contexts, Prisma migrations, entrypoint scripts, and Next.js standalone configurations compiled and booted identically to the primary workspace.
+
+### 3. Verification Summary
+- **Health Check:** `curl.exe http://localhost:3001/health` returned `HTTP 200 {"status":"ok","db":"up"}`.
+- **Auth Endpoint:** `POST /auth/login` returned `HTTP 200` with user object and signed JWT token.
+- **Teardown:** Clean clone removed with zero dangling containers or networks.
+
+
 
