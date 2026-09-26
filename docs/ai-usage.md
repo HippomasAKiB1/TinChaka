@@ -411,3 +411,41 @@ Executed the foundational alignment and system design before writing any code:
 - **Docker Compose Smoke Test:**
   - `OPTIONS /auth/login` with Origin returned 204 with `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, and no `RateLimit-Limit` header.
   - `POST /auth/login` with Origin returned 200 with `Access-Control-Allow-Origin: *` and authentication payload.
+
+---
+
+## Log Entry 12: Passenger Dashboard, Fare Display & Co-Passenger Privacy (Step 12)
+
+- **Date / Timestamp:** 2026-09-26T22:56:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 12 (PROJECT_PLAN.md §7 step 3: Passenger dashboard, request form, two-stage fare display with pooled discount, co-passenger presence without fare leakage, ride status stepper, and cancellation control)
+- **Branch:** `feature/frontend-passenger`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `tinchaka-api/src/services/rideRequest.service.ts` | Added `listPassengerRideRequestsWithPool` exposing co-passenger names/seats without leaking individual fares |
+| `tinchaka-api/src/controllers/rideRequest.controller.ts` | Updated `listMine` controller to return pool members with ride requests |
+| `tinchaka-api/tests/passenger-pool-visibility.test.ts` | Added integration tests verifying co-passenger visibility, absence of fare fields in member objects, and cancellation filtering |
+| `tinchaka-web/lib/zones.ts` | Client-side definition of Dhaka's 9 zones matching backend distance matrix |
+| `tinchaka-web/lib/format.ts` | Currency formatting helper `formatPoysha` converting poysha to Taka without dropping fractions |
+| `tinchaka-web/lib/rides.ts` | Typed frontend API client methods (`createRide`, `listMyRides`, `cancelRide`) |
+| `tinchaka-web/app/passenger/RequestForm.tsx` | Ride request form with zone pickers, seat selector (1-3), validation, and active ride disablement |
+| `tinchaka-web/app/passenger/ActiveRide.tsx` | Active ride card featuring 5-stage visual progress stepper, two-stage fare display, co-passenger presence, and trip cancellation |
+| `tinchaka-web/app/passenger/HistoryList.tsx` | Historical ride list displaying completed and cancelled trips with fare breakdowns |
+| `tinchaka-web/app/passenger/page.tsx` | Protected passenger dashboard orchestrating real-time 3-second polling, ride state management, and role guarding |
+
+### 2. Accepted Suggestions
+- **Strict Co-Passenger Privacy:** `listPassengerRideRequestsWithPool` explicitly queries `pool_members` with only `{ id, name, seats_requested }`, strictly omitting `estimated_fare_poysha` and `final_fare_poysha` from other riders to protect passenger privacy per §7 step 6.
+- **Two-Stage Dynamic Fare UI:** Implemented §2.3 requirement in `ActiveRide`: shows `Estimated fare: ৳75` when `REQUESTED`, and transitions to show struck-through `Estimated: ৳75` alongside prominent emerald `Final fare: ৳66` with a "Pooled discount" badge when matched in a multi-rider pool.
+- **Visual Progress Stepper & Cancellation Guard:** Built a 5-step progress stepper (Requested → Matched → Arrived → Started → Completed). Cancellation is enabled during pre-trip stages (`REQUESTED`, `MATCHED`, `DRIVER_ARRIVED`) and cleanly disabled with explanatory tooltip once `STARTED`.
+
+### 3. Verification Summary
+- **Backend Tests:** 77/77 tests passing across 12 test suites (including 3 new tests in `passenger-pool-visibility.test.ts`).
+- **Frontend Build:** `npm run build` completed successfully with `/passenger` included in static route table.
+- **Browser Smoke Test (Chrome Subagent):**
+  - Logged into live Next.js application as `nusrat@tinchaka.dev`.
+  - Created a ride from Banani to Mohakhali (1 seat).
+  - Verified active ride card displayed `Estimated fare: ৳75` under `Banani → Mohakhali` with `Requested` stage active, co-passengers showing `Solo ride`, and active `Cancel ride` button.
+
