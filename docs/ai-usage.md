@@ -307,5 +307,43 @@ Executed the foundational alignment and system design before writing any code:
   - `GET /pools/me/active` as Jashim $\rightarrow$ 200 with active pool.
   - `GET /pools/me/history` as Jashim $\rightarrow$ 200 with pool history.
 
+---
+
+## Log Entry 9: Backend Polish, Security Hardening & Observability (Step 10)
+
+- **Date / Timestamp:** 2026-09-26T21:54:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 10 (PROJECT_PLAN.md §6 step 11: Request logging, /auth/* rate limiting, route parameter and query Zod validation, database-connected /health endpoint, cleanup of cancelPool re-export)
+- **Branch:** `feature/backend-polish`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/services/rideRequest.service.ts` | Removed legacy `cancelPool` re-export to keep service boundaries clean |
+| `src/middleware/requestLogger.ts` | Logged method, path, HTTP status, elapsed time in ms, and caller user ID (omits /health and never logs request bodies) |
+| `src/middleware/rateLimit.ts` | Configured `authLimiter` via `express-rate-limit` (10 requests per 15 min per IP on `/auth/*` only) |
+| `src/middleware/validateParam.ts` | Added `validateUuidParam` ensuring 400 VALIDATION_ERROR for malformed UUID parameters |
+| `src/schemas/rideRequest.schema.ts` | Added `.strict()` rejecting unexpected body properties with 400; added `pendingInZoneQuerySchema` |
+| `src/controllers/rideRequest.controller.ts` | Applied `pendingInZoneQuerySchema` to query params |
+| `src/routes/rideRequest.routes.ts` | Wired `validateUuidParam('id')` on `:id` endpoints |
+| `src/routes/pool.routes.ts` | Wired `validateUuidParam('id')` on `:id` transition endpoints |
+| `src/app.ts` | Mounted `requestLogger` first, wired `authLimiter` to `/auth`, updated `/health` to query `SELECT 1` |
+| `tests/backend-polish.test.ts` | Integration test suite verifying rate limiting, DB-backed health check, strict body validation, and UUID param validation |
+
+### 2. Accepted Suggestions
+- **`cancelPool` Re-export Cleanup:** Removed the temporary `export { cancelPool } from './pool.service'` statement from `rideRequest.service.ts`. Confirmed all callers import `cancelPool` directly from `pool.service.ts`, eliminating module boundary confusion.
+- **Test-Mode Rate Limiter Design:** To prevent IP-reuse contention across the 68 existing integration test cases running in a single Jest process, `authLimiter` uses `skip: () => process.env.NODE_ENV === 'test' && process.env.TEST_RATE_LIMIT !== 'true'`. This leaves rate limiting fully active in development, staging, and production Docker environments, while enabling selective testing in `tests/backend-polish.test.ts`.
+- **Strict Zod Body Validation (`.strict()`):** Configured `.strict()` on `createRideRequestSchema`. Rather than silently stripping unexpected payload fields, the API explicitly rejects unknown properties with 400 VALIDATION_ERROR to prevent unvetted input.
+
+### 3. Verification Summary
+- **Unit & Integration Tests:** 72/72 tests passing across all 10 test suites:
+  - `tests/backend-polish.test.ts`: Passed all 4 cases (11th login returns 429, GET /health returns `{ status: 'ok', db: 'up' }`, unknown body field returns 400, non-UUID param returns 400).
+- **Docker Compose Smoke Test:** Verified in containerized production environment:
+  - `GET /health` returned `HTTP 200 {"status":"ok","db":"up"}`.
+  - 11 rapid requests to `POST /auth/login` returned ten 401s followed by 429 Too Many Requests on the 11th request.
+  - Container logs verified `[req] ...` logging format without leaking password bodies.
+
+
 
 
