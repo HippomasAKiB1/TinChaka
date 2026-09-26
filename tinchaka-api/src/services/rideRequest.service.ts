@@ -1,4 +1,4 @@
-import { RideRequest } from '@prisma/client';
+import { RideRequest, RideStatusHistory } from '@prisma/client';
 import { prisma } from '../config/db';
 import { Zone } from '../domain/zones';
 import { estimateSoloFare, calculateFinalFare } from '../domain/fare';
@@ -180,4 +180,48 @@ export async function cancelRideRequest(
       where: { id: rideRequestId },
     });
   });
+}
+
+// Fetches ride request details with audit history; enforces role-scoped cross-user ownership per PROJECT_PLAN.md §6 step 5
+export async function getRideRequestForUser(
+  userId: string,
+  userRole: 'PASSENGER' | 'DRIVER',
+  rideRequestId: string,
+): Promise<RideRequest & { ride_status_history: RideStatusHistory[] }> {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_REGEX.test(rideRequestId)) {
+    throw new AppError(404, 'Ride request not found', 'NOT_FOUND');
+  }
+
+  const rideRequest = await prisma.rideRequest.findUnique({
+    where: { id: rideRequestId },
+    include: {
+      ride_status_history: {
+        orderBy: { changed_at: 'asc' },
+      },
+      pool: {
+        include: {
+          vehicle: true,
+        },
+      },
+    },
+  });
+
+  if (!rideRequest) {
+    throw new AppError(404, 'Ride request not found', 'NOT_FOUND');
+  }
+
+  // Enforce role-scoped authorization: passenger owns request, driver owns pool vehicle
+  if (userRole === 'PASSENGER') {
+    if (rideRequest.passenger_id !== userId) {
+      throw new AppError(403, 'Forbidden: You do not own this ride request', 'FORBIDDEN');
+    }
+  } else if (userRole === 'DRIVER') {
+    if (!rideRequest.pool || rideRequest.pool.vehicle.driver_id !== userId) {
+      throw new AppError(403, 'Forbidden: Ride request is not in your vehicle pool', 'FORBIDDEN');
+    }
+  }
+
+  const { pool: _pool, ...result } = rideRequest;
+  return result;
 }

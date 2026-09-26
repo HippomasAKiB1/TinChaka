@@ -425,3 +425,56 @@ export async function cancelPool(driverId: string, poolId: string): Promise<Pool
     });
   });
 }
+
+// Fetches the active uncompleted pool for a driver's vehicle (MATCHED, DRIVER_ARRIVED, or STARTED)
+export async function getActivePoolForDriver(
+  driverId: string,
+): Promise<(Pool & { ride_requests: RideRequest[] }) | null> {
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { driver_id: driverId },
+  });
+
+  if (!vehicle) {
+    return null;
+  }
+
+  return await prisma.pool.findFirst({
+    where: {
+      vehicle_id: vehicle.id,
+      status: { in: ['MATCHED', 'DRIVER_ARRIVED', 'STARTED'] },
+    },
+    include: {
+      ride_requests: {
+        orderBy: { created_at: 'asc' },
+      },
+    },
+  });
+}
+
+// Lists full driver pool history (including COMPLETED and CANCELLED) ordered newest first
+export async function listDriverHistory(
+  driverId: string,
+): Promise<Array<Pool & { ride_requests: RideRequest[] }>> {
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { driver_id: driverId },
+  });
+
+  if (!vehicle) {
+    return [];
+  }
+
+  return await prisma.pool.findMany({
+    where: {
+      vehicle_id: vehicle.id,
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+    include: {
+      ride_requests: {
+        orderBy: { created_at: 'asc' },
+      },
+    },
+  });
+}
+
