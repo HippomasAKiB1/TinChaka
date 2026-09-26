@@ -1,4 +1,5 @@
 import express, { Application, Request, Response } from 'express';
+import cors from 'cors';
 import { requestLogger } from './middleware/requestLogger';
 import { authLimiter } from './middleware/rateLimit';
 import { authRouter } from './routes/auth.routes';
@@ -15,6 +16,9 @@ export const createApp = (): Application => {
 
   // Request logging middleware tracking latency and actor identity per PROJECT_PLAN.md §6 step 11
   app.use(requestLogger);
+
+  // Allow browser calls from the Next.js frontend (localhost:3000 → localhost:3001). Wide-open for MVP; tighten with an origin allowlist at deployment.
+  app.use(cors());
 
   // Core parsing middleware
   app.use(express.json());
