@@ -667,3 +667,33 @@ The Dockerfile copies `package*.json` first, runs `npm ci`, then copies `prisma/
 ### 6. Human Corrections & Guidance Acknowledged
 1. **Missed file (seed.ts):** The initial `bcrypt → bcryptjs` swap only covered `password.service.ts`. The seed script also imported `bcrypt` directly; discovered only when Docker's entrypoint seed step failed. Both files now consistently use `bcryptjs`.
 2. **Hard Rule — No re-seeding or re-hashing:** Confirmed that no passwords were regenerated. The fix only changes the library used to _verify_ at login time.
+
+---
+
+## Log Entry 15A.2: Vercel Frontend Deploy Fix — Conditional Standalone Output
+
+- **Date / Timestamp:** 2026-09-27T01:40:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 15A.2 — Fix tinchaka-web Vercel edge 404 caused by Next.js standalone output
+- **Commit:** `a0e129c` on `release/v1.0.0`
+- **Branch:** `release/v1.0.0`
+
+### 1. Root Cause Identified
+- **Next.js Standalone vs. Vercel Routing Conflict:** `tinchaka-web/next.config.js` had `output: 'standalone'`. In Vercel serverless deployments, `output: 'standalone'` causes Next.js to produce a self-hosted standalone server package instead of the normal Vercel-managed file structure. As a result, Vercel successfully builds the static and server pages but fails to wire up the edge routing manifest, returning `404 NOT_FOUND` for all edge requests before they reach Next.js.
+- **Production Branch Mismatch:** The Vercel project's Production Branch was configured to `master` instead of `release/v1.0.0`, requiring manual configuration in Vercel UI.
+
+### 2. Fixes Applied
+
+| File | Change |
+|---|---|
+| `tinchaka-web/next.config.js` | Gated `output: 'standalone'` on `process.env.DOCKER_BUILD === '1'`. Standard Vercel builds evaluate to empty config (`{}`), restoring native Vercel route manifest generation. |
+| `tinchaka-web/Dockerfile` | Added `ENV DOCKER_BUILD=1` in the builder stage immediately before `RUN npm run build`. |
+
+### 3. Verification & Docker Gate
+- **Step A (Local Vercel-Style Build):** Ran `npm run build` in `tinchaka-web` with `DOCKER_BUILD` unset. Verified build completed without generating standalone server assets in the route summary table.
+- **Step B (Docker Verification Gate):** Ran `docker compose up -d --build`. `tinchaka-web` compiled with `DOCKER_BUILD=1` and successfully copied `.next/standalone`.
+  - `curl http://localhost:3000` returned HTTP 200 with `<title>TinChaka — Dhaka Ride Pooling</title>`.
+  - All 3 containers (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`) reached running/healthy states.
+  - Cleanly torn down with `docker compose down`.
+- **Step C (API Vercel Health Check):** Verified live deployed API `https://tinchaka-api.vercel.app/health` returned HTTP 200 `{"status":"ok","db":"up"}`.
+
