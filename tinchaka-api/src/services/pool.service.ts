@@ -3,6 +3,7 @@ import { prisma } from '../config/db';
 import { AppError } from '../types/AppError';
 import { Zone } from '../domain/zones';
 import { calculateFinalFare } from '../domain/fare';
+import { assertPoolTransition, assertRideRequestTransition } from '../domain/stateMachine';
 
 export interface AcceptResult {
   pool: Pool & { ride_requests: RideRequest[] };
@@ -166,5 +167,261 @@ export async function acceptRequest(driverId: string, rideRequestId: string): Pr
     });
 
     return { pool: poolWithMembers, created };
+  });
+}
+
+// Transitions pool and all active members to DRIVER_ARRIVED with history fan-out per PROJECT_PLAN.md §2.1
+export async function markArrived(driverId: string, poolId: string): Promise<Pool & { ride_requests: RideRequest[] }> {
+  return await prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      include: { vehicle: true },
+    });
+
+    if (!pool) {
+      throw new AppError(404, 'Pool not found', 'POOL_NOT_FOUND');
+    }
+
+    if (pool.vehicle.driver_id !== driverId) {
+      throw new AppError(403, 'Forbidden: You do not operate this pool', 'FORBIDDEN');
+    }
+
+    assertPoolTransition(pool.status, 'DRIVER_ARRIVED');
+
+    await tx.pool.update({
+      where: { id: poolId },
+      data: { status: 'DRIVER_ARRIVED' },
+    });
+
+    // Fan out DRIVER_ARRIVED status to all active pool members
+    const activeMembers = await tx.rideRequest.findMany({
+      where: {
+        pool_id: poolId,
+        status: { in: ['MATCHED', 'DRIVER_ARRIVED'] },
+      },
+    });
+
+    for (const member of activeMembers) {
+      assertRideRequestTransition(member.status, 'DRIVER_ARRIVED');
+
+      await tx.rideRequest.update({
+        where: { id: member.id },
+        data: { status: 'DRIVER_ARRIVED' },
+      });
+
+      await tx.rideStatusHistory.create({
+        data: {
+          ride_request_id: member.id,
+          from_status: member.status,
+          to_status: 'DRIVER_ARRIVED',
+          changed_by_user_id: driverId,
+        },
+      });
+    }
+
+    return await tx.pool.findUniqueOrThrow({
+      where: { id: poolId },
+      include: {
+        ride_requests: {
+          orderBy: { created_at: 'asc' },
+        },
+      },
+    });
+  });
+}
+
+// Transitions pool and all active members to STARTED; marks point of no return for member cancellations
+export async function markStarted(driverId: string, poolId: string): Promise<Pool & { ride_requests: RideRequest[] }> {
+  return await prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      include: { vehicle: true },
+    });
+
+    if (!pool) {
+      throw new AppError(404, 'Pool not found', 'POOL_NOT_FOUND');
+    }
+
+    if (pool.vehicle.driver_id !== driverId) {
+      throw new AppError(403, 'Forbidden: You do not operate this pool', 'FORBIDDEN');
+    }
+
+    assertPoolTransition(pool.status, 'STARTED');
+
+    await tx.pool.update({
+      where: { id: poolId },
+      data: {
+        status: 'STARTED',
+        started_at: new Date(),
+      },
+    });
+
+    // Fan out STARTED status to all active pool members
+    const activeMembers = await tx.rideRequest.findMany({
+      where: {
+        pool_id: poolId,
+        status: { in: ['MATCHED', 'DRIVER_ARRIVED'] },
+      },
+    });
+
+    for (const member of activeMembers) {
+      assertRideRequestTransition(member.status, 'STARTED');
+
+      await tx.rideRequest.update({
+        where: { id: member.id },
+        data: { status: 'STARTED' },
+      });
+
+      await tx.rideStatusHistory.create({
+        data: {
+          ride_request_id: member.id,
+          from_status: member.status,
+          to_status: 'STARTED',
+          changed_by_user_id: driverId,
+        },
+      });
+    }
+
+    return await tx.pool.findUniqueOrThrow({
+      where: { id: poolId },
+      include: {
+        ride_requests: {
+          orderBy: { created_at: 'asc' },
+        },
+      },
+    });
+  });
+}
+
+// Transitions pool to COMPLETED, fans out completion to members, and creates pending cash payment records
+export async function markCompleted(driverId: string, poolId: string): Promise<Pool & { ride_requests: RideRequest[] }> {
+  return await prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      include: { vehicle: true },
+    });
+
+    if (!pool) {
+      throw new AppError(404, 'Pool not found', 'POOL_NOT_FOUND');
+    }
+
+    if (pool.vehicle.driver_id !== driverId) {
+      throw new AppError(403, 'Forbidden: You do not operate this pool', 'FORBIDDEN');
+    }
+
+    assertPoolTransition(pool.status, 'COMPLETED');
+
+    await tx.pool.update({
+      where: { id: poolId },
+      data: {
+        status: 'COMPLETED',
+        completed_at: new Date(),
+      },
+    });
+
+    // Fan out COMPLETED status and generate cash payment records per architecture.md §6
+    const activeMembers = await tx.rideRequest.findMany({
+      where: {
+        pool_id: poolId,
+        status: { in: ['MATCHED', 'DRIVER_ARRIVED', 'STARTED'] },
+      },
+    });
+
+    for (const member of activeMembers) {
+      assertRideRequestTransition(member.status, 'COMPLETED');
+
+      await tx.rideRequest.update({
+        where: { id: member.id },
+        data: { status: 'COMPLETED' },
+      });
+
+      await tx.rideStatusHistory.create({
+        data: {
+          ride_request_id: member.id,
+          from_status: member.status,
+          to_status: 'COMPLETED',
+          changed_by_user_id: driverId,
+        },
+      });
+
+      // Create settlement payment record for passenger final fare
+      await tx.payment.create({
+        data: {
+          ride_request_id: member.id,
+          method: 'CASH',
+          amount_poysha: member.final_fare_poysha ?? member.estimated_fare_poysha,
+          status: 'PENDING',
+        },
+      });
+    }
+
+    return await tx.pool.findUniqueOrThrow({
+      where: { id: poolId },
+      include: {
+        ride_requests: {
+          orderBy: { created_at: 'asc' },
+        },
+      },
+    });
+  });
+}
+
+// Cancels the whole pool and all its active member requests per architecture.md §6
+export async function cancelPool(driverId: string, poolId: string): Promise<Pool & { ride_requests: RideRequest[] }> {
+  return await prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      include: { vehicle: true },
+    });
+
+    if (!pool) {
+      throw new AppError(404, 'Pool not found', 'POOL_NOT_FOUND');
+    }
+
+    if (pool.vehicle.driver_id !== driverId) {
+      throw new AppError(403, 'Forbidden: You do not operate this pool', 'FORBIDDEN');
+    }
+
+    assertPoolTransition(pool.status, 'CANCELLED');
+
+    await tx.pool.update({
+      where: { id: poolId },
+      data: { status: 'CANCELLED' },
+    });
+
+    // Fan out cancellation to all active pool members
+    const activeMembers = await tx.rideRequest.findMany({
+      where: {
+        pool_id: poolId,
+        status: { in: ['MATCHED', 'DRIVER_ARRIVED'] },
+      },
+    });
+
+    for (const member of activeMembers) {
+      assertRideRequestTransition(member.status, 'CANCELLED');
+
+      await tx.rideRequest.update({
+        where: { id: member.id },
+        data: { status: 'CANCELLED' },
+      });
+
+      await tx.rideStatusHistory.create({
+        data: {
+          ride_request_id: member.id,
+          from_status: member.status,
+          to_status: 'CANCELLED',
+          changed_by_user_id: driverId,
+        },
+      });
+    }
+
+    return await tx.pool.findUniqueOrThrow({
+      where: { id: poolId },
+      include: {
+        ride_requests: {
+          orderBy: { created_at: 'asc' },
+        },
+      },
+    });
   });
 }
