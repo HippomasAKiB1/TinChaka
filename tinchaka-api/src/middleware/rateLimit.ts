@@ -15,5 +15,9 @@ export const authLimiter = rateLimit({
       message: 'Too many attempts, try again later',
     },
   },
-  skip: () => process.env.NODE_ENV === 'test' && process.env.TEST_RATE_LIMIT !== 'true',
+  // Preflight OPTIONS requests are browser-generated and must not consume the auth rate limit budget.
+  skip: (req) =>
+    req.method === 'OPTIONS' ||
+    (process.env.NODE_ENV === 'test' && process.env.TEST_RATE_LIMIT !== 'true'),
 });
+
