@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
-import { create, listMine, listPending, cancel } from '../controllers/rideRequest.controller';
+import { create, listMine, listPending, cancel, detail } from '../controllers/rideRequest.controller';
 
 export const rideRequestRouter = Router();
 
@@ -14,3 +14,6 @@ rideRequestRouter.get('/', requireAuth, requireRole('DRIVER'), listPending);
 
 // Cancel ride request: no requireRole because both passenger and driver can cancel per architecture.md §6; service validates ownership
 rideRequestRouter.patch('/:id/cancel', requireAuth, cancel);
+
+// Ride request detail with full transition history: role-scoped authz enforced in service per PROJECT_PLAN.md §6 step 5
+rideRequestRouter.get('/:id', requireAuth, detail);

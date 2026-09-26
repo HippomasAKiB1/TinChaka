@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { createRideRequestSchema } from '../schemas/rideRequest.schema';
-import { createRideRequest, listPassengerRideRequests, listPendingInZone, cancelRideRequest } from '../services/rideRequest.service';
+import {
+  createRideRequest,
+  listPassengerRideRequests,
+  listPendingInZone,
+  cancelRideRequest,
+  getRideRequestForUser,
+} from '../services/rideRequest.service';
 import { isZone } from '../domain/zones';
 import { AppError } from '../types/AppError';
 
@@ -46,6 +52,16 @@ export async function listPending(req: Request, res: Response, next: NextFunctio
 export async function cancel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const rideRequest = await cancelRideRequest(req.user!.id, req.user!.role, req.params.id);
+    res.status(200).json({ ride_request: rideRequest });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Fetches single ride request detail with full transition audit history
+export async function detail(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rideRequest = await getRideRequestForUser(req.user!.id, req.user!.role, req.params.id);
     res.status(200).json({ ride_request: rideRequest });
   } catch (err) {
     next(err);
