@@ -579,4 +579,46 @@ Executed the foundational alignment and system design before writing any code:
 
 
 
+---
 
+## Log Entry 15A: Vercel Serverless Prep + Neon Postgres Migration
+
+- **Date / Timestamp:** 2026-09-27T00:43:00+06:00
+- **AI Tools Used:** Antigravity (powered by Claude Sonnet 4.6 Thinking)
+- **Phase Covered:** Step 15A — Vercel deployment preparation; Neon DB migration
+- **Commit:** `3eedd01` on `release/v1.0.0`
+- **Branch:** `release/v1.0.0`
+
+### 1. Operations Performed
+
+| File / Action | Change |
+|---|---|
+| `tinchaka-api/api/index.ts` (new) | Vercel serverless entry point — imports `app`, no `listen()` call |
+| `tinchaka-api/vercel.json` (new) | `@vercel/node` build config routing all traffic to `api/index.ts` |
+| `tinchaka-api/src/config/db.ts` | Global `PrismaClient` caching gated on `VERCEL=1` only; Docker/test always create a fresh instance to preserve test isolation |
+| `tinchaka-api/src/middleware/rateLimit.ts` | Added `process.env.VERCEL === '1'` to skip predicate — in-memory window state is not shared across serverless instances |
+| `tinchaka-api/src/app.ts` | Replaced wide-open `cors()` with an origin allowlist: `localhost:3000` always allowed; `FRONTEND_URL` env var adds the deployed Vercel frontend URL |
+| Neon migration | `prisma migrate deploy` applied `20260925201845_init` to Neon Postgres (`neondb` at `ap-southeast-1`) |
+| Neon seed | `prisma db seed` inserted story-cast users + vehicles into Neon |
+
+### 2. Docker Verification (Task 5 Gate)
+
+- `docker compose up -d --build` rebuilt both images cleanly (Prisma generate + tsc succeeded).
+- `GET http://localhost:3001/health` → `{"status":"ok","db":"up"}` ✅
+- `npm test` (with Docker stack running): **77/77 tests, 12/12 suites** ✅
+
+### 3. Accepted Suggestions
+- **Vercel-scoped global PrismaClient:** Initial implementation used `NODE_ENV !== 'production'` as the global-caching guard, which broke test isolation by reusing a Prisma instance across Jest test files that might have different DB states. Corrected to `VERCEL === '1'` so only serverless invocations benefit from caching; Docker and Jest always get a fresh client.
+- **FRONTEND_URL allowlist:** Replaced wide-open `cors()` with an explicit origin allowlist. `localhost:3000` is always included for Docker/local dev; the Vercel frontend URL is added via `FRONTEND_URL` env var.
+
+### 4. Considered and Rejected
+- **`log: ['query']` in non-production:** Enabled Prisma query logging for all non-production environments; this caused "Cannot log after tests are done" Jest warnings and was revised to `log: []` in non-production (errors only in production remains the correct choice for signal-to-noise ratio).
+- **Global caching in all non-production environments:** Rejected; caused test DB connection failures as Jest re-uses a globally-cached but potentially closed Prisma client across serial test suites.
+
+### 5. Secret Handling
+- Neon connection string was passed exclusively as a PowerShell `$env:DATABASE_URL` shell-scoped variable.
+- `git log --all -p` scan confirmed zero secret strings in any tracked file or commit.
+
+### 6. Human Corrections & Guidance Acknowledged
+1. **Rule — Never commit the Neon connection string:** Confirmed adherence; string never written to `.env`, source code, config file, or commit message.
+2. **Rule — Docker is primary deliverable:** Vercel additions are purely additive; Docker health check and 77-test suite used as the pass/fail gate.
