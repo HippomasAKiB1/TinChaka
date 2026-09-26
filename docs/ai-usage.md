@@ -383,3 +383,31 @@ Executed the foundational alignment and system design before writing any code:
   - `curl.exe http://localhost:3000/login` verified login HTML rendered.
   - `curl.exe http://localhost:3000/signup` verified signup HTML rendered.
   - `curl.exe POST http://localhost:3001/auth/login` verified live round-trip authentication returning 200 with JWT token for `nusrat@tinchaka.dev`.
+
+---
+
+## Log Entry 11: CORS Middleware Registration & Preflight Rate Limit Bypass (Step 11.1)
+
+- **Date / Timestamp:** 2026-09-26T22:38:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 11.1 (CORS middleware registration for browser clients, preflight OPTIONS rate limit bypass, regression test suite)
+- **Branch:** `feature/fix-cors`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `tinchaka-api/package.json` | Added `cors` dependency and `@types/cors` devDependency |
+| `tinchaka-api/src/app.ts` | Imported `cors` and mounted `app.use(cors())` before `express.json()` and route mounts |
+| `tinchaka-api/src/middleware/rateLimit.ts` | Added `req.method === 'OPTIONS'` bypass to `skip` predicate so browser preflights never consume auth rate limit quota |
+| `tinchaka-api/tests/cors.test.ts` | Added Supertest regression tests asserting `access-control-allow-origin` on OPTIONS and GET, and absence of `RateLimit-Limit` on preflights |
+
+### 2. Context & Root Cause
+- **CORS Middleware:** `cors()` was dropped during the Step 10 `app.ts` polish rewrite; not caught by Supertest because Supertest bypasses browser preflight checks. Added regression test asserting CORS headers are always present.
+- **Preflight Rate Limiting:** Browser preflight OPTIONS requests to `/auth/*` were previously hitting the auth rate limiter, consuming quota before the actual request. Explicitly skipping `OPTIONS` in the rate limiter prevents preflight consumption.
+
+### 3. Verification Summary
+- **Unit & Integration Tests:** 74/74 tests passing across 11 test suites (72 existing + 2 new CORS regression tests).
+- **Docker Compose Smoke Test:**
+  - `OPTIONS /auth/login` with Origin returned 204 with `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, and no `RateLimit-Limit` header.
+  - `POST /auth/login` with Origin returned 200 with `Access-Control-Allow-Origin: *` and authentication payload.
