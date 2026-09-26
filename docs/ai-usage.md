@@ -697,3 +697,30 @@ The Dockerfile copies `package*.json` first, runs `npm ci`, then copies `prisma/
   - Cleanly torn down with `docker compose down`.
 - **Step C (API Vercel Health Check):** Verified live deployed API `https://tinchaka-api.vercel.app/health` returned HTTP 200 `{"status":"ok","db":"up"}`.
 
+---
+
+## Log Entry 15A.3: CORS Error Handling Fix — Suppress Misleading 500 on Preflight
+
+- **Date / Timestamp:** 2026-09-27T02:14:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 15A.3 — Fix CORS rejection in tinchaka-api to omit headers rather than throwing 500
+- **Commit:** `60320c1` on `release/v1.0.0`
+- **Branch:** `release/v1.0.0`
+
+### 1. Root Cause Identified
+- **Throwing in CORS Callback Caused 500:** `app.ts` previously threw `new Error('Not allowed by CORS')` when an incoming `Origin` did not match `allowedOrigins`. Express routed this unhandled error into `errorHandler`, returning `HTTP 500 Internal Server Error` with `{"error":{"code":"INTERNAL","message":"Internal server error"}}`. Any mismatch or misconfigured `FRONTEND_URL` on Vercel therefore converted standard browser preflight checks into internal server failures instead of clean CORS denials.
+
+### 2. Fixes Applied
+
+| File | Change |
+|---|---|
+| `tinchaka-api/src/app.ts` | Replaced `callback(new Error('Not allowed by CORS'))` with `callback(null, false)`. On a disallowed origin, CORS headers are simply omitted, allowing standard browser-level origin enforcement without generating a 500 server error. |
+
+### 3. Verification & Docker Gate
+- **Test Suite:** Ran `npm test` across all suites; 77/77 tests passed.
+- **Docker Compose Gate:**
+  - `OPTIONS /auth/login` with `Origin: http://localhost:3000` returned `HTTP 204` with `Access-Control-Allow-Origin: http://localhost:3000`.
+  - `OPTIONS /auth/login` with `Origin: http://evil.example.com` returned `HTTP 200` without any `Access-Control-Allow-Origin` header (no 500 error).
+  - `POST /auth/login` with `nusrat@tinchaka.dev` returned `HTTP 200` with user object and JWT token.
+- **Redeploy Trigger:** Committed empty commit `chore(api): force redeploy for CORS callback fix` (`0c85ad2`) to ensure Vercel backend deployment rebuilds.
+
