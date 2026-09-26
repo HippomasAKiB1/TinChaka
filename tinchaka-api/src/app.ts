@@ -1,4 +1,6 @@
 import express, { Application, Request, Response } from 'express';
+import { requestLogger } from './middleware/requestLogger';
+import { authLimiter } from './middleware/rateLimit';
 import { authRouter } from './routes/auth.routes';
 import { rideRequestRouter } from './routes/rideRequest.routes';
 import { vehicleRouter } from './routes/vehicle.routes';
@@ -6,19 +8,29 @@ import { poolRouter } from './routes/pool.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
+import { prisma } from './config/db';
+
 export const createApp = (): Application => {
   const app = express();
+
+  // Request logging middleware tracking latency and actor identity per PROJECT_PLAN.md §6 step 11
+  app.use(requestLogger);
 
   // Core parsing middleware
   app.use(express.json());
 
-  // Health check endpoint (for Docker & load balancer probes)
-  app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok' });
+  // Health check endpoint reporting DB reachability for Docker & load balancer probes
+  app.get('/health', async (_req: Request, res: Response) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.status(200).json({ status: 'ok', db: 'up' });
+    } catch {
+      res.status(503).json({ status: 'degraded', db: 'down' });
+    }
   });
 
-  // Mount auth routes
-  app.use('/auth', authRouter);
+  // §6 step 11: rate limit /auth/* minimally (10 attempts per 15 min per IP)
+  app.use('/auth', authLimiter, authRouter);
 
   // Mount passenger ride request routes
   app.use('/ride-requests', rideRequestRouter);
@@ -28,13 +40,6 @@ export const createApp = (): Application => {
 
   // Mount pool routes
   app.use('/pools', poolRouter);
-
-  // TODO(step-6): mount requireOwnership middleware on ride resources
-  // TODO(step-7): mount ride request endpoints (/ride-requests)
-  // TODO(step-8): mount driver availability & zone endpoints (/vehicles)
-  // TODO(step-9): mount pool endpoints (/pools, /pools/:id/join)
-  // TODO(step-10): mount lifecycle endpoints (/pools/:id/arrived, start, complete)
-  // TODO(step-11): mount ride history endpoints (/rides/history)
 
   // Catch-all 404 for unmatched routes
   app.use(notFoundHandler);

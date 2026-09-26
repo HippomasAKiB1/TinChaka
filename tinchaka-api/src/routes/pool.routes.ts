@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRole } from '../middleware/requireRole';
+import { validateUuidParam } from '../middleware/validateParam';
 import { accept, arrived, start, complete, cancel, active, history } from '../controllers/pool.controller';
 
 export const poolRouter = Router();
@@ -13,7 +14,7 @@ poolRouter.get('/me/active', requireAuth, requireRole('DRIVER'), active);
 poolRouter.get('/me/history', requireAuth, requireRole('DRIVER'), history);
 
 // Driver pool lifecycle transitions per PROJECT_PLAN.md §2.1 and §6 Step 9
-poolRouter.patch('/:id/arrived', requireAuth, requireRole('DRIVER'), arrived);
-poolRouter.patch('/:id/start', requireAuth, requireRole('DRIVER'), start);
-poolRouter.patch('/:id/complete', requireAuth, requireRole('DRIVER'), complete);
-poolRouter.patch('/:id/cancel', requireAuth, requireRole('DRIVER'), cancel);
+poolRouter.patch('/:id/arrived', requireAuth, requireRole('DRIVER'), validateUuidParam('id'), arrived);
+poolRouter.patch('/:id/start', requireAuth, requireRole('DRIVER'), validateUuidParam('id'), start);
+poolRouter.patch('/:id/complete', requireAuth, requireRole('DRIVER'), validateUuidParam('id'), complete);
+poolRouter.patch('/:id/cancel', requireAuth, requireRole('DRIVER'), validateUuidParam('id'), cancel);

@@ -5,8 +5,6 @@ import { estimateSoloFare, calculateFinalFare } from '../domain/fare';
 import { AppError } from '../types/AppError';
 import { assertRideRequestTransition } from '../domain/stateMachine';
 
-export { cancelPool } from './pool.service';
-
 export interface CreateRideRequestParams {
   passengerId: string;
   pickup_zone: Zone;
