@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { acceptSchema } from '../schemas/pool.schema';
-import { acceptRequest, markArrived, markStarted, markCompleted, cancelPool } from '../services/pool.service';
+import {
+  acceptRequest,
+  markArrived,
+  markStarted,
+  markCompleted,
+  cancelPool,
+  getActivePoolForDriver,
+  listDriverHistory,
+} from '../services/pool.service';
 
 export async function accept(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -48,6 +56,26 @@ export async function cancel(req: Request, res: Response, next: NextFunction): P
   try {
     const pool = await cancelPool(req.user!.id, req.params.id);
     res.status(200).json({ pool });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Returns active uncompleted pool for authenticated driver
+export async function active(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const pool = await getActivePoolForDriver(req.user!.id);
+    res.status(200).json({ pool });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Returns full pool trip history for authenticated driver
+export async function history(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const pools = await listDriverHistory(req.user!.id);
+    res.status(200).json({ pools });
   } catch (err) {
     next(err);
   }
