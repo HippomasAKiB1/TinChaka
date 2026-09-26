@@ -23,14 +23,16 @@ export const createApp = (): Application => {
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 
+  // On a disallowed origin, pass `false` so CORS headers are simply
+  // omitted. Throwing would route through errorHandler and return a
+  // misleading 500 on the preflight, hiding the real mismatch.
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow same-origin / curl (no Origin header) and any listed origin
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
-          callback(new Error('Not allowed by CORS'));
+          callback(null, false);
         }
       },
     })
