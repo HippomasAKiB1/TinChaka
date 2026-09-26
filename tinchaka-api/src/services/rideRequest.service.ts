@@ -44,6 +44,71 @@ export async function createRideRequest(input: CreateRideRequestParams): Promise
   });
 }
 
+export interface PoolMemberSummary {
+  id: string;
+  name: string;
+  seats_requested: number;
+}
+
+export type PassengerRideRequestWithPool = RideRequest & {
+  pool_members: PoolMemberSummary[] | null;
+};
+
+// Lists passenger ride requests with co-passenger visibility without leaking fares per §7 step 6
+export async function listPassengerRideRequestsWithPool(
+  passengerId: string
+): Promise<PassengerRideRequestWithPool[]> {
+  const rides = await prisma.rideRequest.findMany({
+    where: {
+      passenger_id: passengerId,
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+
+  const result: PassengerRideRequestWithPool[] = [];
+
+  for (const ride of rides) {
+    if (!ride.pool_id) {
+      result.push({
+        ...ride,
+        pool_members: null,
+      });
+    } else {
+      const members = await prisma.rideRequest.findMany({
+        where: {
+          pool_id: ride.pool_id,
+          status: { not: 'CANCELLED' },
+        },
+        include: {
+          passenger: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'asc',
+        },
+      });
+
+      const poolMembers: PoolMemberSummary[] = members.map((m) => ({
+        id: m.id,
+        name: m.passenger.name,
+        seats_requested: m.seats_requested,
+      }));
+
+      result.push({
+        ...ride,
+        pool_members: poolMembers,
+      });
+    }
+  }
+
+  return result;
+}
+
 // Lists passenger ride requests ordered by creation time descending
 export async function listPassengerRideRequests(passengerId: string): Promise<RideRequest[]> {
   return await prisma.rideRequest.findMany({

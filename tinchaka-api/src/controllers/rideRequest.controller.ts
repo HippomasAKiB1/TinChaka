@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createRideRequestSchema, pendingInZoneQuerySchema } from '../schemas/rideRequest.schema';
 import {
   createRideRequest,
-  listPassengerRideRequests,
+  listPassengerRideRequestsWithPool,
   listPendingInZone,
   cancelRideRequest,
   getRideRequestForUser,
@@ -27,7 +27,7 @@ export async function create(req: Request, res: Response, next: NextFunction): P
 
 export async function listMine(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const rideRequests = await listPassengerRideRequests(req.user!.id);
+    const rideRequests = await listPassengerRideRequestsWithPool(req.user!.id);
     res.status(200).json({ ride_requests: rideRequests });
   } catch (err) {
     next(err);
