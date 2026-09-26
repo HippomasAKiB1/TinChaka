@@ -256,4 +256,56 @@ Executed the foundational alignment and system design before writing any code:
     6. Invalid transitions (skipping states) rejected with 409 INVALID_TRANSITION.
 - **Docker Compose Smoke Test:** Ran full containerized lifecycle via curl against `tinchaka-api` and live `tinchaka-db`, verifying pool status `COMPLETED`, member statuses `COMPLETED`, settled payment records, and complete `ride_status_history` audit chains.
 
+---
+
+## Log Entry 8: Ride Detail, History & Cross-User Security (Step 9)
+
+- **Date / Timestamp:** 2026-09-26T21:44:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 9 (Ride detail endpoint with full audit history, driver active pool and pool history queries, cross-user isolation barriers, §9 Test #5 ride detail test suite)
+- **Branch:** `feature/ride-history`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/services/rideRequest.service.ts` | Added `getRideRequestForUser` with role-aware authorization and transition history inclusion |
+| `src/controllers/rideRequest.controller.ts` | Added `detail` controller handler for `GET /ride-requests/:id` |
+| `src/routes/rideRequest.routes.ts` | Mounted `GET /ride-requests/:id` with `requireAuth` |
+| `src/services/pool.service.ts` | Added `getActivePoolForDriver` and `listDriverHistory` querying driver pools |
+| `src/controllers/pool.controller.ts` | Added `active` and `history` controller handlers |
+| `src/routes/pool.routes.ts` | Mounted `GET /pools/me/active` and `GET /pools/me/history` routes before parameterized routes |
+| `tests/ride-detail.test.ts` | §9 Test #5 integration suite covering 12 test cases for cross-user isolation, role gates, and history |
+
+### 2. Accepted Suggestions
+- **Route-Ordering Precedence Gotcha (`/pools/me/*` vs `/pools/:id/*`):** In Express routing, static path segments must precede parameterized path segments. Registered `GET /pools/me/active` and `GET /pools/me/history` strictly before `/pools/:id/*` routes to prevent Express from capturing the string literal `"me"` as a pool UUID parameter `:id`.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **Option A Decision on `requireOwnership` Middleware:** Evaluated whether to wire the generic `requireOwnership` middleware directly onto `GET /ride-requests/:id`. Formally chose **Option A**: enforcing authorization inside `getRideRequestForUser` at the service layer. Because the resource ownership rule is fundamentally role-dependent (a PASSENGER must match `rideRequest.passenger_id`, while a DRIVER must operate the pool vehicle matching `rideRequest.pool.vehicle.driver_id`), a generic owner-id extractor middleware cannot express this without duplicate queries or premature complexity (Option B). The intent of `PROJECT_PLAN.md §6 step 5` ("structurally impossible to forget" cross-user barriers) is completely satisfied by routing all detail reads through the single validated service method.
+- **Returning 404 vs 403 on Cross-User Requests:** Maintained strict return of 403 FORBIDDEN for cross-user attempts on existing rides (per §6 step 5 and §9 test 5), while returning 404 NOT_FOUND only when the ride UUID genuinely does not exist or fails UUID format validation.
+
+### 4. Verification Summary
+- **Unit & Integration Tests:** 68/68 tests passing across all 9 test suites:
+  - `tests/ride-detail.test.ts`: Passed all 12 test cases:
+    1. Nusrat reads her own ride with $\ge 2$ audit history rows.
+    2. Rafiq blocked with 403 from Nusrat's ride.
+    3. Nusrat blocked with 403 from Rafiq's ride.
+    4. Shirin (unrelated passenger) blocked with 403.
+    5. Jashim (driver operating the pool) reads member ride with 200.
+    6. Jashim blocked with 403 from another driver's pool member ride.
+    7. Unauthenticated request rejected with 401.
+    8. Nonexistent ride returns 404.
+    9. Jashim reads his active pool with 200.
+    10. Passenger blocked with 403 from driver active pool route.
+    11. Jashim reads his pool history with 200.
+    12. Passenger blocked with 403 from driver history route.
+- **Docker Compose Smoke Test:** Verified against live containerized API and PostgreSQL:
+  - `GET /ride-requests/:id` with Nusrat token $\rightarrow$ 200 with history.
+  - `GET /ride-requests/:id` with Rafiq token $\rightarrow$ 403.
+  - `GET /ride-requests/:id` with Shirin token $\rightarrow$ 403.
+  - `GET /ride-requests/:id` with no token $\rightarrow$ 401.
+  - `GET /pools/me/active` as Jashim $\rightarrow$ 200 with active pool.
+  - `GET /pools/me/history` as Jashim $\rightarrow$ 200 with pool history.
+
+
 
