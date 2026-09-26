@@ -344,6 +344,42 @@ Executed the foundational alignment and system design before writing any code:
   - 11 rapid requests to `POST /auth/login` returned ten 401s followed by 429 Too Many Requests on the 11th request.
   - Container logs verified `[req] ...` logging format without leaking password bodies.
 
+---
 
+## Log Entry 10: Frontend Foundation & Authentication UI (Step 11)
 
+- **Date / Timestamp:** 2026-09-26T22:20:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 11 (PROJECT_PLAN.md §7 steps 1-2: Typed API client, AuthProvider & session management, TopNav with Bengali subtitle, Landing page with role CTAs, Login & Signup pages with client validation, Collapsible Demo Credentials panel)
+- **Branch:** `feature/frontend-auth`
 
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `tinchaka-web/lib/api.ts` | Typed `apiFetch<T>` wrapper and `ApiError` handling `Authorization: Bearer <token>`, JSON serialization/deserialization, and error code parsing |
+| `tinchaka-web/lib/auth.tsx` | React `AuthProvider` and `useAuth` hook managing `tinchaka.session` in `localStorage`, login, signup, and logout with SSR hydration guard |
+| `tinchaka-web/lib/validation.ts` | Client-side validation helper (`validateLogin`, `validateSignup`) mirroring backend Zod constraints without external UI dependencies |
+| `tinchaka-web/components/DemoCredentials.tsx` | Collapsible demo credentials drawer displaying story-cast accounts (Nusrat, Rafiq, Shirin, Jashim) with auto-fill support |
+| `tinchaka-web/components/TopNav.tsx` | Sticky top navigation bar showing TinChaka branding, Bengali subtitle, session status, and login/signup/logout actions |
+| `tinchaka-web/app/layout.tsx` | App layout wrapped with `AuthProvider` and `TopNav`, retaining Dhaka ride pooling metadata and dark theme styling |
+| `tinchaka-web/app/page.tsx` | Landing page featuring live status badge, value proposition, session welcome-back card, and role-based navigation CTAs |
+| `tinchaka-web/app/login/page.tsx` | Login form with inline error alerts, submit button loading states, demo credentials drawer, and redirect to role dashboards |
+| `tinchaka-web/app/signup/page.tsx` | Registration form with Passenger/Driver role radio options, client validation, inline error alerts, and demo accounts drawer |
+| `tinchaka-web/app/globals.css` | Dark theme base styling with emerald accent focus outlines and scrollbars |
+| `.gitignore` | Added `*.tsbuildinfo` to exclude TypeScript incremental build artifacts |
+
+### 2. Accepted Suggestions
+- **Typed `apiFetch` Wrapper:** Built a clean wrapper using native `fetch` reading `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:3001`). Handles 204 No Content gracefully and extracts structured error objects (`{ error: { code, message } }`) into `ApiError`.
+- **Session Management via LocalStorage:** Implemented `tinchaka.session` storage inside `AuthProvider`. Guarded against React 18 / Next.js SSR hydration mismatches by setting initial `isLoading: true` and hydrating session inside `useEffect`.
+- **Zero Additional Frontend Dependencies:** Implemented client validation and UI components using plain React 18, Next.js 14 App Router, and Tailwind CSS without importing any external UI or form libraries.
+- **Story-Cast Demo Accounts Panel:** Embedded collapsible credentials panel referencing Nusrat, Rafiq, Shirin, and Jashim from `docs/PROJECT_PLAN.md §0`, allowing single-click form pre-filling for faster evaluation.
+
+### 3. Verification Summary
+- **Next.js Production Build:** `npm run build` in `tinchaka-web` succeeded with 0 errors, prerendering `/`, `/_not-found`, `/login`, and `/signup`.
+- **Docker Compose Smoke Test:**
+  - `docker compose up -d --build` started `tinchaka-db`, `tinchaka-api`, and `tinchaka-web`.
+  - `curl.exe http://localhost:3000` verified root HTML contains "TinChaka".
+  - `curl.exe http://localhost:3000/login` verified login HTML rendered.
+  - `curl.exe http://localhost:3000/signup` verified signup HTML rendered.
+  - `curl.exe POST http://localhost:3001/auth/login` verified live round-trip authentication returning 200 with JWT token for `nusrat@tinchaka.dev`.
