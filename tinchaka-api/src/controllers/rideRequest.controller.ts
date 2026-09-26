@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createRideRequestSchema } from '../schemas/rideRequest.schema';
+import { createRideRequestSchema, pendingInZoneQuerySchema } from '../schemas/rideRequest.schema';
 import {
   createRideRequest,
   listPassengerRideRequests,
@@ -37,11 +37,8 @@ export async function listMine(req: Request, res: Response, next: NextFunction):
 // Lists pending ride requests in a specific zone for drivers
 export async function listPending(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const zoneQuery = req.query.zone;
-    if (typeof zoneQuery !== 'string' || !isZone(zoneQuery)) {
-      throw new AppError(400, 'Valid zone query parameter is required', 'VALIDATION_ERROR');
-    }
-    const rideRequests = await listPendingInZone(req.user!.id, zoneQuery);
+    const validated = pendingInZoneQuerySchema.parse(req.query);
+    const rideRequests = await listPendingInZone(req.user!.id, validated.zone);
     res.status(200).json({ ride_requests: rideRequests });
   } catch (err) {
     next(err);

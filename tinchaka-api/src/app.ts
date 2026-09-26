@@ -8,6 +8,8 @@ import { poolRouter } from './routes/pool.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
+import { prisma } from './config/db';
+
 export const createApp = (): Application => {
   const app = express();
 
@@ -17,9 +19,14 @@ export const createApp = (): Application => {
   // Core parsing middleware
   app.use(express.json());
 
-  // Health check endpoint (for Docker & load balancer probes)
-  app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok' });
+  // Health check endpoint reporting DB reachability for Docker & load balancer probes
+  app.get('/health', async (_req: Request, res: Response) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.status(200).json({ status: 'ok', db: 'up' });
+    } catch {
+      res.status(503).json({ status: 'degraded', db: 'down' });
+    }
   });
 
   // §6 step 11: rate limit /auth/* minimally (10 attempts per 15 min per IP)
