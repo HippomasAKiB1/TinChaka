@@ -1,4 +1,6 @@
-import bcrypt from 'bcrypt';
+// bcryptjs (pure JS) instead of bcrypt (native) — required for
+// Vercel serverless where install scripts that compile native binaries are blocked.
+import bcrypt from 'bcryptjs';
 
 // 10 salt rounds provides optimal trade-off between brute-force resistance and CPU latency per PROJECT_PLAN.md §1
 const BCRYPT_SALT_ROUNDS = 10;

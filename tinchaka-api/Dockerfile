@@ -6,7 +6,7 @@ RUN apk add --no-cache openssl
 
 # Copy dependency manifests
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Copy source and prisma definitions
 COPY tsconfig.json ./
