@@ -91,6 +91,29 @@ export default function HomePage() {
           <span>🇧🇩 Dhaka core</span>
         </div>
       </div>
+
+      <footer className="mt-16 mb-8 text-xs text-slate-500 text-center">
+        <span className="opacity-60">─── Every three-wheeler has a maker.</span>{' '}
+        This one&apos;s{' '}
+        <a
+          href="https://akibhasan.me"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-slate-300 transition-colors"
+        >
+          Akib Hasan
+        </a>
+        .{' · '}
+        <a
+          href="https://akibhasan.me"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-slate-300 transition-colors"
+        >
+          akibhasan.me
+        </a>
+        <span className="opacity-60"> ───</span>
+      </footer>
     </main>
   );
 }

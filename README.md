@@ -475,3 +475,19 @@ _Recorded at final submission (6 minutes); covers problem context, architectural
 ## 19. License
 
 This project is licensed under the MIT License — educational and evaluation release for the RoBenDevs Internship Challenge.
+
+---
+
+## Author
+
+**Akib Hasan** — Dhaka, Bangladesh
+
+- 🌐 Website: [akibhasan.me](https://akibhasan.me)
+- 💼 LinkedIn: [linkedin.com/in/akib-hasan-pyil](https://linkedin.com/in/akib-hasan-pyil)
+- 🐙 GitHub: [@HippomasAKiB1](https://github.com/HippomasAKiB1)
+- 📧 Email: [akibhasankp1245@gmail.com](mailto:akibhasankp1245@gmail.com)
+- ✉️ Alt: [mail@akibhasan.me](mailto:mail@akibhasan.me)
+
+_Built as a submission for the RoBenDevs internship challenge, September 2026._
+
+---
