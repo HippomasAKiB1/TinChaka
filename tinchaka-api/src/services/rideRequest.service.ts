@@ -1,8 +1,11 @@
 import { RideRequest } from '@prisma/client';
 import { prisma } from '../config/db';
 import { Zone } from '../domain/zones';
-import { estimateSoloFare } from '../domain/fare';
+import { estimateSoloFare, calculateFinalFare } from '../domain/fare';
 import { AppError } from '../types/AppError';
+import { assertRideRequestTransition } from '../domain/stateMachine';
+
+export { cancelPool } from './pool.service';
 
 export interface CreateRideRequestParams {
   passengerId: string;
@@ -77,3 +80,104 @@ export async function listPendingInZone(driverId: string, zone: Zone): Promise<R
   });
 }
 
+// Cancels individual ride request and rebalances remaining pool members per architecture.md §6
+export async function cancelRideRequest(
+  userId: string,
+  userRole: 'PASSENGER' | 'DRIVER',
+  rideRequestId: string,
+): Promise<RideRequest> {
+  return await prisma.$transaction(async (tx) => {
+    // a) Look up the ride request with pool and vehicle relationships
+    const rideRequest = await tx.rideRequest.findUnique({
+      where: { id: rideRequestId },
+      include: {
+        pool: {
+          include: {
+            vehicle: true,
+          },
+        },
+      },
+    });
+
+    if (!rideRequest) {
+      throw new AppError(404, 'Ride request not found', 'NOT_FOUND');
+    }
+
+    // b) Authorization verification: passengers own request, drivers own pool vehicle
+    if (userRole === 'PASSENGER') {
+      if (rideRequest.passenger_id !== userId) {
+        throw new AppError(403, 'Forbidden', 'FORBIDDEN');
+      }
+    } else if (userRole === 'DRIVER') {
+      if (!rideRequest.pool || rideRequest.pool.vehicle.driver_id !== userId) {
+        throw new AppError(403, 'Forbidden', 'FORBIDDEN');
+      }
+    }
+
+    // c) Enforce state machine transition; blocks cancellation after STARTED (§9 test 6)
+    assertRideRequestTransition(rideRequest.status, 'CANCELLED');
+
+    // d) Update ride_requests status to CANCELLED
+    await tx.rideRequest.update({
+      where: { id: rideRequestId },
+      data: { status: 'CANCELLED' },
+    });
+
+    // e) Record state transition in audit trail
+    await tx.rideStatusHistory.create({
+      data: {
+        ride_request_id: rideRequestId,
+        from_status: rideRequest.status,
+        to_status: 'CANCELLED',
+        changed_by_user_id: userId,
+      },
+    });
+
+    // f) Handle remaining pool members and fare rebalancing
+    if (rideRequest.pool_id) {
+      const targetPoolId = rideRequest.pool_id;
+      const remainingMembers = await tx.rideRequest.findMany({
+        where: {
+          pool_id: targetPoolId,
+          status: { in: ['MATCHED', 'DRIVER_ARRIVED', 'STARTED'] },
+          id: { not: rideRequestId },
+        },
+      });
+
+      if (remainingMembers.length === 0) {
+        // If no active members remain, cancel the pool aggregate
+        await tx.pool.update({
+          where: { id: targetPoolId },
+          data: { status: 'CANCELLED' },
+        });
+      } else if (remainingMembers.length === 1) {
+        // If exactly 1 member remains, revert to solo estimate (fare changes are NOT status changes — no history row written)
+        const soloMember = remainingMembers[0];
+        await tx.rideRequest.update({
+          where: { id: soloMember.id },
+          data: {
+            final_fare_poysha: soloMember.estimated_fare_poysha,
+          },
+        });
+      } else {
+        // If 2+ members remain, recompute final fare with 20% discount (fare changes are NOT status changes — no history row written)
+        for (const member of remainingMembers) {
+          const finalFare = calculateFinalFare(
+            member.pickup_zone as Zone,
+            member.destination_zone as Zone,
+            remainingMembers.length,
+          );
+          await tx.rideRequest.update({
+            where: { id: member.id },
+            data: { final_fare_poysha: finalFare },
+          });
+        }
+      }
+    }
+
+    // g) Return the updated (cancelled) ride request
+    return await tx.rideRequest.findUniqueOrThrow({
+      where: { id: rideRequestId },
+    });
+  });
+}
