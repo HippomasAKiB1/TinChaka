@@ -17,8 +17,24 @@ export const createApp = (): Application => {
   // Request logging middleware tracking latency and actor identity per PROJECT_PLAN.md §6 step 11
   app.use(requestLogger);
 
-  // Allow browser calls from the Next.js frontend (localhost:3000 → localhost:3001). Wide-open for MVP; tighten with an origin allowlist at deployment.
-  app.use(cors());
+  // FRONTEND_URL is set on Vercel after the frontend deploys; localhost:3000 covers Docker and local dev.
+  const allowedOrigins = [
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean) as string[];
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow same-origin / curl (no Origin header) and any listed origin
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+    })
+  );
 
   // Core parsing middleware
   app.use(express.json());

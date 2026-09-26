@@ -16,8 +16,11 @@ export const authLimiter = rateLimit({
     },
   },
   // Preflight OPTIONS requests are browser-generated and must not consume the auth rate limit budget.
+  // In-memory rate-limit state is not shared across Vercel serverless instances; skip there and keep
+  // the limiter for Docker where it works correctly.
   skip: (req) =>
     req.method === 'OPTIONS' ||
+    process.env.VERCEL === '1' ||
     (process.env.NODE_ENV === 'test' && process.env.TEST_RATE_LIMIT !== 'true'),
 });
 
