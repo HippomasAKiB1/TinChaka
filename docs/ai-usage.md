@@ -213,3 +213,47 @@ Executed the foundational alignment and system design before writing any code:
   - Driver `POST /pools/accept` (Rafiq) -> 200 joined pool, Nusrat fare = 6600, Rafiq fare = 7800
   - Direct SQL query confirmed both rows updated in PostgreSQL.
 
+---
+
+## Log Entry 7: Ride Lifecycle Transitions & Cancellation Handling (Step 8)
+
+- **Date / Timestamp:** 2026-09-26T21:26:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 8 (State machine validator per PROJECT_PLAN.md §2.1, pool lifecycle transitions arrived/start/complete with history fan-out, cancellation with remaining-member fare rebalancing, §9 Test #3 state machine invalid transitions and §9 Test #6 cancellation cutoff)
+- **Branch:** `feature/ride-lifecycle-transitions`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `src/domain/stateMachine.ts` | Single source of truth state machine transition assertions per PROJECT_PLAN.md §2.1 |
+| `src/services/pool.service.ts` | Added `markArrived`, `markStarted`, `markCompleted`, and `cancelPool` with atomic transactions, fan-out, and payment records |
+| `src/services/rideRequest.service.ts` | Added `cancelRideRequest` with authorization, cancellation validation, remaining-member fare rebalancing, and re-exported `cancelPool` |
+| `src/controllers/pool.controller.ts` | Added `arrived`, `start`, `complete`, and `cancel` controller handlers |
+| `src/routes/pool.routes.ts` | Added `PATCH /pools/:id/arrived`, `/start`, `/complete`, and `/cancel` routes |
+| `src/controllers/rideRequest.controller.ts` | Added `cancel` controller handler for `PATCH /ride-requests/:id/cancel` |
+| `src/routes/rideRequest.routes.ts` | Added `PATCH /ride-requests/:id/cancel` route |
+| `tests/state-machine.test.ts` | §9 Test #3 unit tests verifying state machine legality and rejection of invalid transitions |
+| `tests/lifecycle.test.ts` | §9 Test #3 & #6 integration tests covering happy path, cancellation cutoff, fare reversion, and cross-user barriers |
+
+### 2. Accepted Suggestions
+- **Role-Aware Ownership Check Inside Service for `/cancel`:** Ownership validation for `PATCH /ride-requests/:id/cancel` is placed within `cancelRideRequest` service instead of generic `requireOwnership` middleware. This design accommodates two distinct authorization pathways: passengers owning the request (`rideRequest.passenger_id === userId`) vs. drivers cancelling on behalf of their pool (`rideRequest.pool.vehicle.driver_id === userId`). Generic route middleware cannot cleanly evaluate nested pool-vehicle-driver ownership hierarchies without duplicating DB lookups.
+- **Omission of Audit Rows for Fare-Only Recomputes:** When a member cancels from a multi-rider pool, remaining members undergo dynamic fare rebalancing (e.g. reverting to solo estimate if down to 1 active member). Confirmed that fare changes are financial adjustments, not lifecycle state transitions; thus, no rows are appended to `ride_status_history` for fare-only updates.
+
+### 3. Considered and Rejected / Modified Suggestions
+- **Generic `PATCH /status` Endpoint:** Strongly rejected any generic status mutation endpoint in favor of explicit, intention-revealing operations (`markArrived`, `markStarted`, `markCompleted`, `cancelRideRequest`, `cancelPool`). This eliminates client-driven state corruption and enforces strict server-side state machine assertions.
+- **Premature Wiring of `requireOwnership` Middleware:** Adhered strictly to plan to reserve `requireOwnership` for Step 9 detail endpoints (`/ride-requests/:id`), avoiding premature coupling on mutation routes where service-level role discrimination is required.
+
+### 4. Verification Summary
+- **Unit & Integration Tests:** 56/56 tests passing across all 8 test suites:
+  - `tests/state-machine.test.ts`: Passed all tests verifying progressive transitions and rejecting disallowed state transitions (e.g. `COMPLETED -> STARTED`, `STARTED -> CANCELLED`, `CANCELLED -> any`).
+  - `tests/lifecycle.test.ts`: Passed all 6 integration tests:
+    1. Happy path: `arrived -> started -> complete` generated cash payments and full audit history.
+    2. §9 test 6: cancellation blocked once pool reaches `STARTED`.
+    3. Cancellation allowed before `STARTED` with automatic fare reversion to solo estimate for remaining member.
+    4. Cross-user access denied (403 FORBIDDEN).
+    5. Driver cancels pool before `STARTED` with fan-out to all active members.
+    6. Invalid transitions (skipping states) rejected with 409 INVALID_TRANSITION.
+- **Docker Compose Smoke Test:** Ran full containerized lifecycle via curl against `tinchaka-api` and live `tinchaka-db`, verifying pool status `COMPLETED`, member statuses `COMPLETED`, settled payment records, and complete `ride_status_history` audit chains.
+
+
