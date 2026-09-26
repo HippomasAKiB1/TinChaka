@@ -516,5 +516,40 @@ Executed the foundational alignment and system design before writing any code:
 - **Auth Endpoint:** `POST /auth/login` returned `HTTP 200` with user object and signed JWT token.
 - **Teardown:** Clean clone removed with zero dangling containers or networks.
 
+---
+
+## Log Entry 15: Master Build Plan README Documentation (Step 14B)
+
+- **Date / Timestamp:** 2026-09-26T23:54:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 14B (Wrote comprehensive project README per PROJECT_PLAN.md §14 checklist across 19 dedicated sections)
+- **Branch:** `pre-release`
+
+### 1. Operations Performed
+
+| Section | Content & Details |
+|---|---|
+| Project Title & Name | Explained "TinChaka" ("তিন চাকা" — three wheels) referencing the PRD's closing line. |
+| Problem Statement | Described Banani rush hour transit gridlock and the engineering challenge of capacity enforcement, dynamic pooling, and audit logging. |
+| Features Implemented | Documented all completed features in present tense across auth, request, pooling, lifecycle, history, and Docker. |
+| Screenshots | Created `docs/screenshots/.gitkeep` and referenced four core flow screenshots with descriptive captions. |
+| Architecture & ERD | Inlined the full Mermaid `erDiagram` and `flowchart TD` diagrams from `docs/architecture.md`. |
+| Tech Stack & Structure | Documented versions, tree hierarchy, and prerequisites (Node 20, Docker Desktop). |
+| Environment Variables | Tabulated every environment variable from `.env.example` with descriptions and non-secret examples. |
+| Setup & Migrations | Documented primary single-command `docker compose up -d --build` alongside local dev and manual migration fallbacks. |
+| Testing Guide | Documented execution of 77 tests across 12 suites with explicit file paths for all §9 required tests. |
+| Story Cast Credentials | Tabulated Nusrat, Rafiq, Shirin, Jashim, and Karim with demo password `tinchaka123`. |
+| Deployment | Documented Docker Compose as the primary deliverable and provided the technical justification for the Render free-tier fallback per §1 and §13. |
+| API Overview | Tabulated all 16 REST endpoints matching routes implemented on disk. |
+| Key Decisions & Trade-offs | Detailed the 6 core architectural decisions (same-zone matching, no-membership table, integer poysha money, row-lock concurrency, one vehicle per driver, client-declared zone). |
+| Limitations & Next Steps | Documented the known MVP limitations and future improvements (WebSockets, PostGIS, bKash/Nagad). |
+| Justification Table | Inlined the 12-row technology justification table verbatim from `PROJECT_PLAN.md §1`. |
+| AI Usage & Video Placeholder | Summarized AI pairing methodology, accepted/rejected suggestions, and provided the 6-minute video placeholder. |
+
+### 2. Verification Summary
+- **Section Verification:** Confirmed all 19 required sections are present with valid Markdown headings.
+- **Diagram Rendering:** Both Mermaid blocks formatted without proprietary styling for native GitHub rendering.
+
+
 
 
