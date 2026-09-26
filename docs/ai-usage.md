@@ -449,3 +449,41 @@ Executed the foundational alignment and system design before writing any code:
   - Created a ride from Banani to Mohakhali (1 seat).
   - Verified active ride card displayed `Estimated fare: ৳75` under `Banani → Mohakhali` with `Requested` stage active, co-passengers showing `Solo ride`, and active `Cancel ride` button.
 
+---
+
+## Log Entry 13: Driver Dashboard, Pooling Lifecycle & Dynamic 2-Member Discount (Step 13)
+
+- **Date / Timestamp:** 2026-09-26T23:34:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 13 (PROJECT_PLAN.md §7 step 4: Driver dashboard, vehicle online status toggle, zone declaration, pending ride requests list, pool acceptance, multi-rider 20% discount calculation, and trip lifecycle progression)
+- **Branch:** `feature/frontend-driver`
+
+### 1. Files Added / Modified
+
+| File | Purpose |
+|------|---------|
+| `tinchaka-web/lib/driver.ts` | Typed driver API client methods (`setOnline`, `getActivePool`, `getPendingRequests`, `acceptRequest`, `markArrived`, `markStarted`, `markCompleted`, `cancelPool`, `getDriverHistory`) |
+| `tinchaka-web/app/driver/OnlineToggle.tsx` | Vehicle availability pill switch with optimistic UI updates and live radar badge |
+| `tinchaka-web/app/driver/ZonePicker.tsx` | Persistent zone selection dropdown stored in `localStorage.tinchaka.driver.zone` |
+| `tinchaka-web/app/driver/PendingList.tsx` | Real-time pending requests feed in the driver's zone with seat fitting checks and `Accept & pool` action |
+| `tinchaka-web/app/driver/ActivePoolPanel.tsx` | Active vehicle pool panel showing seat occupancy (e.g. `Seats: 2 / 3 (Bullet)`), riders list, 4-stage stepper, and lifecycle buttons |
+| `tinchaka-web/app/driver/DriverHistory.tsx` | Past completed/cancelled pools list summarizing member counts and total cash collected |
+| `tinchaka-web/app/driver/page.tsx` | Protected driver dashboard orchestrating 3-second data polling, role enforcement, and active pool views |
+
+### 2. Accepted Suggestions
+- **Optimistic Online Status:** The online pill immediately flips state and triggers a background PATCH to `/vehicles/me/online`, rolling back seamlessly if the server errors.
+- **Persistent Zone Declaration:** Selected zone defaults to `Banani` and persists across sessions in `localStorage`, maintaining consistent local state for drivers.
+- **Dynamic 20% Two-Member Discount:** Verified §2.3 and §5 pooling rules: 1-member pool maintains solo estimated fare (`৳75`); when a second rider joins the same pool, both fares dynamically recalculate with the 20% pooling discount (`৳66` and `৳78`), displaying struck-through original estimates with emerald discount badges.
+- **Full Trip Lifecycle Controls:** Implemented progressive lifecycle actions from `MATCHED` $\rightarrow$ `DRIVER_ARRIVED` ("Mark arrived at pickup") $\rightarrow$ `STARTED` ("Start trip") $\rightarrow$ `COMPLETED` ("Complete trip & collect cash fares"), locking cancellations once the vehicle starts rolling.
+
+### 3. Verification Summary
+- **Backend Tests:** 77/77 tests passing across 12 test suites.
+- **Frontend Build:** `npm run build` succeeded with `/driver` and `/passenger` in the static route table.
+- **Browser Smoke Test (Chrome Subagent):**
+  - Signed in as Captain Jashim (`jashim@tinchaka.dev`) and accepted Nusrat (`nusrat@tinchaka.dev`).
+  - Signed in as Rafiq (`rafiq@tinchaka.dev`) and requested Banani $\rightarrow$ Mohakhali ride.
+  - Accepted Rafiq into Jashim's pool, raising capacity to `2 / 3` seats and triggering dynamic 20% pooling discount (`৳66` fare).
+  - Advanced Jashim through `Arrived` $\rightarrow$ `Started` $\rightarrow$ `Completed` lifecycle.
+  - Verified total cash fares collected (৳132) on driver history and completed receipt on Nusrat's passenger dashboard.
+
+
