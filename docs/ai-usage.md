@@ -550,6 +550,33 @@ Executed the foundational alignment and system design before writing any code:
 - **Section Verification:** Confirmed all 19 required sections are present with valid Markdown headings.
 - **Diagram Rendering:** Both Mermaid blocks formatted without proprietary styling for native GitHub rendering.
 
+---
+
+## Log Entry 16: Release Branch Cut, Fresh-Volume Verification & Release Tagging (Step 14C)
+
+- **Date / Timestamp:** 2026-09-27T00:03:00+06:00
+- **AI Tools Used:** Antigravity (powered by Gemini 3.8 Flash)
+- **Phase Covered:** Step 14C (Cut release/v1.0.0 branch from pre-release, performed clean fresh-volume Docker stack verification, verified database seed cast, and created annotated release tag v1.0.0)
+- **Branch:** `release/v1.0.0`
+
+### 1. Operations Performed
+
+| Action | Description |
+|--------|-------------|
+| Cut Release Branch | Created `release/v1.0.0` directly from `pre-release` at commit `d2b8891`. |
+| Fresh Volume Teardown & Rebuild | Executed `docker compose down -v` followed by `docker compose up -d --build` to force clean volume creation and re-test automated migrations and seeding via `entrypoint.sh`. |
+| Container Status Verification | Confirmed all 3 services (`tinchaka-db`, `tinchaka-api`, `tinchaka-web`) reached running and healthy states (`Up (healthy)`). |
+| Multi-Endpoint Smoke Check | Verified HTTP 200 on all core endpoints: `GET /health` (200), `GET /` (200), `GET /passenger` (200), `GET /driver` (200), `GET /login` (200). |
+| Seed Integrity Verification | Queried PostgreSQL `users` table via `docker exec`; confirmed exactly the 6 canonical story-cast accounts exist: Karim, Nusrat, Rafiq, Rumi, Shirin (PASSENGER) and Jashim (DRIVER). |
+| Teardown | Executed `docker compose down` leaving the host environment clean. |
+| Tag Creation | Created annotated Git tag `v1.0.0` pointing to the release deliverable with message: `"TinChaka MVP v1.0.0 — Dhaka ride pooling, story-cast, Docker Compose deliverable"`. |
+
+### 2. Verification Summary
+- **HTTP Status Check:** All 4 web routes and API health check returned `HTTP 200`.
+- **Database Seed Check:** 6 users returned in exact alphabetical and role-sorted order.
+- **Git Tag Check:** `git tag --list` confirmed `v1.0.0` pointing to `d2b8891`.
+
+
 
 
 
