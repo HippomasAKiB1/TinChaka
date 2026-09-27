@@ -172,26 +172,28 @@ _Normalized relational schema with direct `ride_requests.pool_id` linkage, forei
 ### System Architecture Diagram
 
 ```mermaid
+
 flowchart TD
-    subgraph ClientLayer ["Client Layer (Browser)"]
-        UI["Next.js App Router (tinchaka-web)\n- Passenger Booking & Tracker\n- Driver Panel & Pool Controls\n- Tailwind CSS (No heavy UI library)"]
+    subgraph Client["Client Layer - Browser"]
+        UI["Next.js App Router<br/>Passenger Booking and Tracker<br/>Driver Panel and Pool Controls<br/>Tailwind CSS"]
     end
 
-    subgraph APILayer ["API Server (Node.js / Express / TypeScript - tinchaka-api)"]
-        Router["Express Routing & Middleware\n- requireAuth (JWT verification)\n- requireRole (PASSENGER / DRIVER)\n- requireOwnership (Resource isolation)\n- Zod Input Validation"]
-        Controllers["Controllers & Service Layer\n- AuthService\n- RideRequestService (Fare estimation)\n- PoolService (Seat calculation & Discount)\n- RideLifecycleService (State machine & Audit)"]
-        PrismaClient["Prisma ORM Client\n- PostgreSQL Transactions\n- SELECT ... FOR UPDATE Row Locks"]
+    subgraph API["API Server - Node.js, Express, TypeScript"]
+        Router["Express Routing and Middleware<br/>requireAuth: JWT verification<br/>requireRole: PASSENGER or DRIVER<br/>requireOwnership: Resource isolation<br/>Zod Input Validation"]
+        Controllers["Controllers and Services<br/>AuthService<br/>RideRequestService: Fare estimation<br/>PoolService: Seat calculation and Discount<br/>RideLifecycleService: State machine and Audit"]
+        PrismaClient["Prisma ORM Client<br/>PostgreSQL Transactions<br/>SELECT FOR UPDATE Row Locks"]
     end
 
-    subgraph DataLayer ["Data Layer (PostgreSQL - tinchaka-db)"]
-        PostgresDB[("PostgreSQL 15 Database\n- Strict Constraints & Enums\n- Immutable Audit History\n- ACID Transaction Isolation")]
+    subgraph DB["Data Layer - PostgreSQL"]
+        PostgresDB[("PostgreSQL 15<br/>Strict Constraints and Enums<br/>Immutable Audit History<br/>ACID Transactions")]
     end
 
-    UI -->|HTTP / JSON (REST API)| Router
+    UI -->|HTTP and JSON| Router
     Router --> Controllers
     Controllers --> PrismaClient
-    PrismaClient -->|PostgreSQL Connection Pool| PostgresDB
-```
+    PrismaClient -->|Connection Pool| PostgresDB
+
+
 _Three-tier monolithic architecture prioritizing transactional integrity, minimal runtime latency, and zero distributed state._
 
 ---
