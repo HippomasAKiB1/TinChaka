@@ -192,7 +192,7 @@ flowchart TD
     Router --> Controllers
     Controllers --> PrismaClient
     PrismaClient -->|Connection Pool| PostgresDB
-
+```
 
 _Three-tier monolithic architecture prioritizing transactional integrity, minimal runtime latency, and zero distributed state._
 
@@ -440,6 +440,7 @@ git clone https://github.com/HippomasAKiB1/TinChaka.git
 cd TinChaka
 cp .env.example .env
 docker compose up -d --build
+```
 
 ---
 
