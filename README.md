@@ -562,7 +562,7 @@ For a complete chronological record of AI interactions, prompts, architectural c
 
 ## 18. Demo Video
 
-🎥 **[Demo Video Link](<TO_BE_FILLED>)**  
+🎥 **[Demo Video Link](<https://youtu.be/Qv579qT00J4>)**  
 _Recorded at final submission (6 minutes); covers problem context, architectural walkthrough, ERD, live pooling demonstration with Nusrat, Rafiq, and Jashim, dynamic fare discount updates, and automated concurrency race test execution._
 
 ---
