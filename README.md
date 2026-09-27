@@ -35,21 +35,62 @@ The engineering challenge is dynamically pooling multiple independent passenger 
 
 ---
 
-## 4. Screenshots
+## 4. Screenshots — The Banani Rush-Hour Story
 
-![Passenger — two-stage fare display](docs/screenshots/passenger-fare.png)  
-_Passenger: estimated ৳75 struck through, final ৳66 after pooling._
+The screenshots below walk through a complete ride-pooling trip on the
+live deployment at **https://tinchaka-web.vercel.app**. They are in
+chronological order — the same sequence the 6-minute video demo uses.
 
-![Driver — active pool panel](docs/screenshots/driver-pool.png)  
-_Driver: 2/3 seats used, both members with fares._
+### 1. Rafiq requests a ride
+![Rafiq requests a ride](docs/screenshots/01-rafiq-requests.png)
+_Rafiq books Banani → Mohakhali and sees the ৳75 solo estimate before
+pooling._
 
-![Pending requests list](docs/screenshots/driver-pending.png)  
-_Driver: same-zone pending list with accept action._
+### 2. Nusrat requests a ride in the same zone
+![Nusrat requests a ride](docs/screenshots/02-nusrat-requests.png)
+_Nusrat books Banani → Mohakhali in the same pickup zone, unlocking the
+same-zone matching rule (§1 of the project plan)._
 
-![Pool formed end-to-end](docs/screenshots/pool-formed.png)  
-_Two passengers pooled into one Bullet._
+### 3. Jashim goes online and sees both pending requests
+![Driver pending list](docs/screenshots/03-driver-pending.png)
+_Same-zone matching surfaces both Banani pickups to the driver, each
+showing their ৳75 solo estimate._
 
-> **Note:** Screenshots captured from the live Docker Compose stack; regenerate by running `docker compose up` and following the demo credentials below.
+### 4. Jashim accepts both — pool formed with 2 riders
+![Pool formed](docs/screenshots/04-driver-pool.png)
+_Bullet seats 2/3. The transactional accept (§5) enforced capacity on
+the way in; the pool now waits for one more rider or for the driver to
+advance._
+
+### 5. Nusrat's fare drops from ৳75 to ৳66
+![Nusrat — two-stage fare display](docs/screenshots/05-passenger-fare.png)
+_§2.3: the estimate is struck through and the final fare recomputed
+with the 20% pool discount. The "Pooled discount" badge appears live._
+
+### 6. Rafiq's fare drops from ৳75 to ৳66
+![Rafiq — fare recomputed](docs/screenshots/06-rafiq-fare.png)
+_Same transition on Rafiq's side — each passenger sees only their own
+fare, never the other's._
+
+### 7. Trip progresses through the state machine
+![Driver lifecycle controls](docs/screenshots/07-driver-lifecycle.png)
+_Matched → Arrived → Started → Completed. Cancellation is blocked once
+the pool is `STARTED` (§9 test 6)._
+
+### 8. Nusrat's ride history after completion
+![Nusrat history](docs/screenshots/08-nusrat-history.png)
+_Simulated CASH payment recorded at ৳66 with full status history from
+the audit trail._
+
+### 9. Rafiq's ride history after completion
+![Rafiq history](docs/screenshots/09-rafiq-history.png)
+_Same record on the co-passenger's side — total ৳132 collected on the
+pooled trip._
+
+### 10. Jashim's trip history
+![Driver history](docs/screenshots/10-driver-history.png)
+_The driver sees completed pools newest-first, with the total fares
+collected for each trip._
 
 ---
 
@@ -339,13 +380,64 @@ The database seed (`prisma/seed.ts`) populates the system with canonical charact
 
 ## 11. Deployment
 
-- **Primary Deliverable:** Docker Compose is the primary deliverable for this project.
-- **Hosted Cloud Deployment Reasoning:** A cloud deployment on Render's free tier was investigated as a stretch goal per `PROJECT_PLAN.md §1 & §13`. Render's free tier imposes database inactivity spin-downs, cold-start latency exceeding 50 seconds, and intermittent connection drops that disrupt automated concurrency evaluations. In accordance with the grading rubric and `PROJECT_PLAN.md §13`, Docker Compose serves as the deterministic, fully reproducible evaluation environment.
-- **Evaluator Launch Command:**
-  ```bash
-  docker compose up -d --build
-  ```
-  Access the web interface at `http://localhost:3000` and the API at `http://localhost:3001`.
+### Live deployment (bonus)
+
+A working live deployment is available for evaluators who want to click
+through without running anything locally:
+
+- **Frontend:** https://tinchaka-web.vercel.app
+- **Backend API:** https://tinchaka-api.vercel.app
+- **Database:** Neon Serverless Postgres
+
+Log in with any of the demo credentials from §10 (e.g.
+`nusrat@tinchaka.dev` / `tinchaka123`).
+
+**Notes on the live environment:**
+- Vercel free tier — the first request after idle takes 1–3 s
+  (serverless cold start). If you see a transient `500` on the very
+  first click, hard-refresh (Ctrl+Shift+R) and retry — the function
+  warms up in a second and subsequent calls are instant. This is a
+  free-tier cold-start quirk, not a defect in the application logic.
+- The in-memory rate limiter on `/auth/*` is disabled on Vercel because
+  serverless instances do not share state. It remains active in the
+  Docker deployment.
+- `bcryptjs` (pure JS) is used instead of `bcrypt` (native) because
+  Vercel's build environment blocks native compilation via install
+  scripts. Hash format is identical, so seed passwords verify unchanged.
+- Prisma Client generation is forced through a `postinstall` hook,
+  because `vercel.json`'s `builds` array bypasses Vercel's UI Build
+  Command.
+- Neon migrations and seed were applied once from a local shell via
+  `npx prisma migrate deploy && npx prisma db seed`.
+- **For a fully deterministic experience with no cold-start caveats,
+  use the Docker Compose deployment below** — it is the primary
+  deliverable for exactly this reason.
+
+### Deployment reasoning
+
+The plan's §13 cut line puts a paid-host deployment below core
+functionality in priority. Rather than gamble on a free-tier backend
+with >50 s cold starts (Render was prototyped and rejected for this
+reason), the deployment targets **Vercel (serverless) + Neon
+(serverless Postgres)** — both free tiers, both responsive, and the
+combination best preserves the concurrency guarantees the concurrency
+test exercises. **Docker Compose remains the primary deliverable**
+because it is the deterministic, no-cold-start, no-rate-limit caveat
+environment the plan explicitly asks for; Vercel is the click-through
+bonus.
+
+### Primary deliverable — Docker Compose
+
+**Docker Compose is the primary deliverable** per `PROJECT_PLAN.md §1`
+and `§13`. It is the deterministic, fully reproducible evaluation
+environment — no cloud dependency, no cold starts, no rate-limit
+caveats. Everything below runs from a clean clone with a single command.
+
+```bash
+git clone https://github.com/HippomasAKiB1/TinChaka.git
+cd TinChaka
+cp .env.example .env
+docker compose up -d --build
 
 ---
 
